@@ -1,0 +1,136 @@
+
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.modern-button {
+  background-color: #58CC02;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  font-size: 16px;
+  font-weight: 500;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  width: 150px;
+  height: 45px;
+  position: relative;
+  overflow: hidden;
+}
+.modern-button:hover {
+  background-color: #46a302;
+}
+.modern-button:active {
+  transform: translateY(1px);
+}
+.button-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.3s ease;
+}
+.checkmark-icon {
+  width: 24px;
+  height: 24px;
+}
+
+
+.grid-container {
+  display: grid;
+  grid-template-columns: repeat(53, minmax(5px, 1fr));
+  grid-gap: 2px;
+}
+.grid-item {
+  width: 12px;
+  height: 12px;
+  background-color: #f3f4f6;
+  border-radius: 2px;
+}
+.level-1 { background-color: #e9f5e9; }
+.level-2 { background-color: #c8e6c9; }
+.level-3 { background-color: #a5d6a7; }
+.level-4 { background-color: #81c784; }
+.level-5 { background-color: #66bb6a; }
+.level-gold { background-color: #ffd700; }
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button { 
+  -webkit-appearance: none; 
+  margin: 0; 
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}
+.modern-button {
+  background-color: #58CC02;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  font-size: 16px;
+  font-weight: 500;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  width: 150px;
+  height: 45px;
+  position: relative;
+  overflow: hidden;
+}
+.modern-button:hover {
+  background-color: #46a302;
+}
+.modern-button:active {
+  transform: translateY(1px);
+}
+.button-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.3s ease;
+}
+.checkmark-icon {
+  width: 24px;
+  height: 24px;
+}
+.goal-select {
+  appearance: none;
+  background-color: #f8f9fa;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 32px 8px 12px;
+  font-size: 14px;
+  color: #4a5568;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%234a5568'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px;
+  transition: all 0.2s ease;
+}
+.goal-select:hover {
+  border-color: #cbd5e0;
+}
+.goal-select:focus {
+  outline: none;
+  border-color: #58CC02;
+  box-shadow: 0 0 0 3px rgba(88, 204, 2, 0.1);
+}
+.tippy-box[data-theme~='custom'] {
+  background-color: #333;
+  color: white;
+  border-radius: 4px;
+  font-size: 14px;
+}
