@@ -5,150 +5,115 @@ import ProgressChart from './ProgressChart';
 import ActivityTracker from './ActivityTracker';
 
 const App = () => {
-  const [dailyData, setDailyData] = useState([]);
-  const [accumulatedData, setAccumulatedData] = useState([]);
+  const [dailyRecords, setDailyRecords] = useState({});
+  const [chartData, setChartData] = useState({
+    earnings: [],
+    hoursWorked: [],
+    sleepHours: [],
+    didWorkout: [],
+    projectsCount: [],
+    labels: [],
+  });
   const [goalLineDaily, setGoalLineDaily] = useState([]);
   const [goalLineAccumulated, setGoalLineAccumulated] = useState([]);
-  const [labels, setLabels] = useState([]);
-  const [daysInMonth, setDaysInMonth] = useState(31); // October has 31 days
   const [isAccumulatedView, setIsAccumulatedView] = useState(true);
   const [selectedGoal, setSelectedGoal] = useState(5000);
   const [activityData, setActivityData] = useState([]);
-  const [hoursData, setHoursData] = useState([]); // Hours Worked
-  const [sleepData, setSleepData] = useState([]); // Sleep Hours
-  const [workoutData, setWorkoutData] = useState([]); // Workout Data
-  const [projectsData, setProjectsData] = useState([]); // Projects Data
-
-  // Initialize selectedDate to today's date
   const [selectedDate, setSelectedDate] = useState(new Date());
 
+  // Load data from localStorage when the component mounts
   useEffect(() => {
+    const storedDailyRecords = JSON.parse(localStorage.getItem('dailyRecords')) || {};
+    setDailyRecords(storedDailyRecords);
+  }, []);
+
+  // Update chart data whenever dailyRecords or selectedDate changes
+  useEffect(() => {
+    updateChartData();
+  }, [dailyRecords, selectedDate, selectedGoal]);
+
+  // Save dailyRecords to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('dailyRecords', JSON.stringify(dailyRecords));
+  }, [dailyRecords]);
+
+  const updateChartData = () => {
+    const year = selectedDate.getFullYear();
+    const month = selectedDate.getMonth();
+
+    // Get the number of days in the selected month
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
     const labels = Array.from({ length: daysInMonth }, (_, i) => (i + 1).toString());
-    setLabels(labels);
+    const earnings = [];
+    const hoursWorked = [];
+    const sleepHours = [];
+    const didWorkout = [];
+    const projectsCount = [];
 
-    // Load data from localStorage or initialize empty arrays
-    const storedDailyData = JSON.parse(localStorage.getItem('dailyData')) || new Array(daysInMonth).fill(null);
-    const storedAccumulatedData = JSON.parse(localStorage.getItem('accumulatedData')) || new Array(daysInMonth).fill(null);
-    const storedHoursData = JSON.parse(localStorage.getItem('hoursData')) || new Array(daysInMonth).fill(0);
-    const storedSleepData = JSON.parse(localStorage.getItem('sleepData')) || new Array(daysInMonth).fill(0);
-    const storedWorkoutData = JSON.parse(localStorage.getItem('workoutData')) || new Array(daysInMonth).fill(false);
-    const storedProjectsData = JSON.parse(localStorage.getItem('projectsData')) || new Array(daysInMonth).fill(0);
+    let accumulatedEarnings = [];
+    let totalEarnings = 0;
 
-    setDailyData(storedDailyData);
-    setAccumulatedData(storedAccumulatedData);
-    setHoursData(storedHoursData);
-    setSleepData(storedSleepData);
-    setWorkoutData(storedWorkoutData);
-    setProjectsData(storedProjectsData);
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateKey = formatDateKey(new Date(year, month, day));
+      const record = dailyRecords[dateKey] || {};
+
+      const earning = record.earnings || 0;
+      totalEarnings += earning;
+
+      earnings.push(earning || null);
+      accumulatedEarnings.push(totalEarnings);
+
+      hoursWorked.push(record.hoursWorked || null);
+      sleepHours.push(record.sleepHours || null);
+      didWorkout.push(record.didWorkout || false);
+      projectsCount.push(record.projectsCount || null);
+    }
 
     // Update goal lines
-    updateGoalLines(selectedGoal, daysInMonth, labels);
-
-    // Initialize activityData
-    const storedActivityData = JSON.parse(localStorage.getItem('activityData')) || new Array(365).fill(0);
-    setActivityData(storedActivityData);
-  }, [daysInMonth, selectedGoal]);
-
-  useEffect(() => {
-    // Save data to localStorage whenever it changes
-    localStorage.setItem('dailyData', JSON.stringify(dailyData));
-    localStorage.setItem('accumulatedData', JSON.stringify(accumulatedData));
-    localStorage.setItem('hoursData', JSON.stringify(hoursData));
-    localStorage.setItem('sleepData', JSON.stringify(sleepData));
-    localStorage.setItem('workoutData', JSON.stringify(workoutData));
-    localStorage.setItem('projectsData', JSON.stringify(projectsData));
-    localStorage.setItem('activityData', JSON.stringify(activityData));
-  }, [dailyData, accumulatedData, hoursData, sleepData, workoutData, projectsData, activityData]);
-
-  const updateGoalLines = (goal, days, labels) => {
-    const dailyGoal = goal / days;
-    setGoalLineDaily(new Array(days).fill(dailyGoal));
+    const dailyGoal = selectedGoal / daysInMonth;
+    setGoalLineDaily(new Array(daysInMonth).fill(dailyGoal));
     setGoalLineAccumulated(labels.map((_, index) => dailyGoal * (index + 1)));
+
+    setChartData({
+      earnings: isAccumulatedView ? accumulatedEarnings : earnings,
+      hoursWorked,
+      sleepHours,
+      didWorkout,
+      projectsCount,
+      labels,
+    });
+  };
+
+  const formatDateKey = (date) => {
+    return date.toISOString().split('T')[0]; // 'YYYY-MM-DD'
   };
 
   const handleGoalChange = (event) => {
     const newGoal = parseInt(event.target.value);
     setSelectedGoal(newGoal);
-    updateGoalLines(newGoal, daysInMonth, labels);
   };
 
   const toggleChartView = () => {
     setIsAccumulatedView(!isAccumulatedView);
   };
 
-  const getTodayIndex = () => {
-    const day = selectedDate.getDate();
-    return day - 1; // Zero-based index
+  const handleDataChange = (date, data) => {
+    setDailyRecords((prevRecords) => {
+      const dateKey = formatDateKey(date);
+      return {
+        ...prevRecords,
+        [dateKey]: {
+          ...prevRecords[dateKey],
+          ...data,
+        },
+      };
+    });
   };
 
-  const handleEarningsChange = (amount) => {
-    const todayIndex = getTodayIndex();
-
-    // Update the amount for the selected date
-    const newDailyData = [...dailyData];
-    newDailyData[todayIndex] = amount;
-
-    // Update accumulated data
-    const newAccumulatedData = [...accumulatedData];
-    let accumulated = 0;
-    for (let i = 0; i <= todayIndex; i++) {
-      accumulated += newDailyData[i] || 0;
-      newAccumulatedData[i] = accumulated;
-    }
-    for (let i = todayIndex + 1; i < newAccumulatedData.length; i++) {
-      newAccumulatedData[i] = null;
-    }
-
-    setDailyData(newDailyData);
-    setAccumulatedData(newAccumulatedData);
-
-    // Update activity tracker
-    const dailyGoal = selectedGoal / daysInMonth;
-    const todayTotal = newDailyData[todayIndex] || 0;
-    const percentage = (todayTotal / dailyGoal) * 100;
-    updateActivityTracker(selectedDate, percentage);
-  };
-
-  const handleHoursChange = (hours) => {
-    const todayIndex = getTodayIndex();
-    const newHoursData = [...hoursData];
-    newHoursData[todayIndex] = hours;
-    setHoursData(newHoursData);
-  };
-
-  const handleSleepChange = (sleepHours) => {
-    const todayIndex = getTodayIndex();
-    const newSleepData = [...sleepData];
-    newSleepData[todayIndex] = sleepHours;
-    setSleepData(newSleepData);
-  };
-
-  const handleWorkoutChange = (didWorkout) => {
-    const todayIndex = getTodayIndex();
-    const newWorkoutData = [...workoutData];
-    newWorkoutData[todayIndex] = didWorkout;
-    setWorkoutData(newWorkoutData);
-  };
-
-  const handleProjectsChange = (newCount) => {
-    const todayIndex = getTodayIndex();
-    const newProjectsData = [...projectsData];
-    newProjectsData[todayIndex] = newCount;
-    setProjectsData(newProjectsData);
-  };
-
-  const updateActivityTracker = (date, percentage) => {
-    const newActivityData = [...activityData];
-    const dayOfYear = getDayOfYear(date) - 1; // Index from 0
-    newActivityData[dayOfYear] = percentage;
-    setActivityData(newActivityData);
-  };
-
-  const getDayOfYear = (date) => {
-    const start = new Date(date.getFullYear(), 0, 0);
-    const diff = date - start;
-    const oneDay = 1000 * 60 * 60 * 24;
-    return Math.floor(diff / oneDay);
+  const getRecordForSelectedDate = () => {
+    const dateKey = formatDateKey(selectedDate);
+    return dailyRecords[dateKey] || {};
   };
 
   return (
@@ -170,33 +135,19 @@ const App = () => {
 
       {/* Integrated DayInput Component */}
       <DayInput
-        onEarningsChange={handleEarningsChange}
-        onHoursChange={handleHoursChange}
-        onSleepChange={handleSleepChange}
-        onWorkoutChange={handleWorkoutChange}
-        onProjectsChange={handleProjectsChange}
-        earnings={dailyData[getTodayIndex()]}
-        hours={hoursData[getTodayIndex()]}
-        sleepHours={sleepData[getTodayIndex()]}
-        didWorkout={workoutData[getTodayIndex()]}
-        projectsCount={projectsData[getTodayIndex()]}
+        onDataChange={handleDataChange}
         date={selectedDate}
         onDateChange={setSelectedDate}
+        record={getRecordForSelectedDate()}
       />
 
       {/* Render the chart */}
       <ProgressChart
-        dailyData={dailyData}
-        accumulatedData={accumulatedData}
+        chartData={chartData}
         goalLineDaily={goalLineDaily}
         goalLineAccumulated={goalLineAccumulated}
-        labels={labels}
         isAccumulatedView={isAccumulatedView}
         toggleChartView={toggleChartView}
-        hoursData={hoursData}
-        sleepData={sleepData}
-        workoutData={workoutData}
-        projectsData={projectsData}
       />
 
       {/* Show earnings activity tracker */}

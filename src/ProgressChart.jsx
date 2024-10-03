@@ -30,15 +30,9 @@ ChartJS.register(
 );
 
 const ProgressChart = ({
-  dailyData,
-  accumulatedData,
+  chartData,
   goalLineDaily,
   goalLineAccumulated,
-  labels,
-  hoursData,
-  sleepData,
-  workoutData,
-  projectsData,
   isAccumulatedView,
   toggleChartView,
 }) => {
@@ -84,6 +78,16 @@ const ProgressChart = ({
     },
   };
 
+  // Destructure the chartData prop
+  const {
+    earnings,
+    hoursWorked,
+    sleepHours,
+    didWorkout,
+    projectsCount,
+    labels,
+  } = chartData;
+
   // Build datasets based on selected charts
   const datasets = [];
 
@@ -95,7 +99,7 @@ const ProgressChart = ({
         datasets.push({
           type: 'line',
           label: 'Earnings (USD)',
-          data: isAccumulatedView ? accumulatedData : dailyData,
+          data: earnings,
           borderColor: colorMap['Earnings'].borderColor,
           backgroundColor: colorMap['Earnings'].backgroundColor,
           borderWidth: 4,
@@ -129,7 +133,7 @@ const ProgressChart = ({
         datasets.push({
           type: 'line',
           label: 'Hours Worked',
-          data: hoursData,
+          data: hoursWorked,
           borderColor: colorMap['Hours Worked'].borderColor,
           backgroundColor: colorMap['Hours Worked'].backgroundColor,
           borderWidth: 2,
@@ -146,7 +150,7 @@ const ProgressChart = ({
         datasets.push({
           type: 'line',
           label: 'Sleep Hours',
-          data: sleepData,
+          data: sleepHours,
           borderColor: colorMap['Sleep Hours'].borderColor,
           backgroundColor: colorMap['Sleep Hours'].backgroundColor,
           borderWidth: 2,
@@ -170,7 +174,7 @@ const ProgressChart = ({
         datasets.push({
           type: 'bar',
           label: 'Workout',
-          data: workoutData.map((workedOut) => (workedOut ? 1 : 0)),
+          data: didWorkout.map((workedOut) => (workedOut ? 1 : 0)),
           backgroundColor: colorMap['Workout'].backgroundColor,
           borderColor: colorMap['Workout'].borderColor,
           borderWidth: 1,
@@ -191,7 +195,7 @@ const ProgressChart = ({
         datasets.push({
           type: 'line',
           label: 'Won Projects',
-          data: projectsData,
+          data: projectsCount,
           borderColor: colorMap['Won Projects'].borderColor,
           backgroundColor: colorMap['Won Projects'].backgroundColor,
           borderWidth: 2,
@@ -331,12 +335,12 @@ const ProgressChart = ({
     };
   }
 
-  const chartData = {
+  const data = {
     labels,
     datasets,
   };
 
-  const chartOptions = {
+  const options = {
     responsive: true,
     interaction: {
       mode: 'index',
@@ -426,7 +430,7 @@ const ProgressChart = ({
           Switch to {isAccumulatedView ? 'Daily' : 'Accumulated'} View
         </button>
       </div>
-      <Line data={chartData} options={chartOptions} />
+      <Line data={data} options={options} />
     </div>
   );
 };

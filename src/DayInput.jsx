@@ -47,35 +47,32 @@ const EndIcon = () => (
   </svg>
 );
 
-const DayInput = ({
-  onEarningsChange,
-  onHoursChange,
-  onSleepChange,
-  onWorkoutChange,
-  onProjectsChange,
-  earnings,
-  hours,
-  sleepHours,
-  didWorkout,
-  projectsCount,
-  date,
-  onDateChange,
-}) => {
-  // Local state
-  const [amount, setAmount] = useState(earnings || 0);
-  const [selectedTimes, setSelectedTimes] = useState([]);
-  const [hoursWorked, setHoursWorked] = useState(hours || 0);
-
-  const [localSleepHours, setLocalSleepHours] = useState(
-    sleepHours !== null && sleepHours !== undefined ? sleepHours : 12
-  );
-  const [localDidWorkout, setLocalDidWorkout] = useState(didWorkout || false);
-  const [localProjectsCount, setLocalProjectsCount] = useState(
-    projectsCount !== null && projectsCount !== undefined ? projectsCount : 0
-  );
+const DayInput = ({ onDataChange, record, date, onDateChange }) => {
   const [selectedDate, setSelectedDate] = useState(date);
 
+  // Local state for inputs
+  const [amount, setAmount] = useState(record.earnings || 0);
+  const [hoursWorked, setHoursWorked] = useState(record.hoursWorked || 0);
+  const [localSleepHours, setLocalSleepHours] = useState(
+    record.sleepHours !== undefined ? record.sleepHours : 8
+  );
+  const [localDidWorkout, setLocalDidWorkout] = useState(record.didWorkout || false);
+  const [localProjectsCount, setLocalProjectsCount] = useState(
+    record.projectsCount !== undefined ? record.projectsCount : 0
+  );
+  const [selectedTimes, setSelectedTimes] = useState(record.selectedTimes || []);
+
   const hoursArray = Array.from({ length: 24 }, (_, i) => i);
+
+  useEffect(() => {
+    setSelectedDate(date);
+    setAmount(record.earnings || 0);
+    setHoursWorked(record.hoursWorked || 0);
+    setLocalSleepHours(record.sleepHours !== undefined ? record.sleepHours : 8);
+    setLocalDidWorkout(record.didWorkout || false);
+    setLocalProjectsCount(record.projectsCount !== undefined ? record.projectsCount : 0);
+    setSelectedTimes(record.selectedTimes || []);
+  }, [date, record]);
 
   const handleDateChange = (e) => {
     const newDate = new Date(e.target.value);
@@ -83,94 +80,57 @@ const DayInput = ({
     onDateChange(newDate);
   };
 
-  // Initialize selectedTimes from localStorage
-  useEffect(() => {
-    const storedSelectedTimes =
-      JSON.parse(localStorage.getItem(`selectedTimes_${selectedDate.toDateString()}`)) || [];
-    setSelectedTimes(storedSelectedTimes);
-  }, [selectedDate]);
-
-  // Save selectedTimes to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem(
-      `selectedTimes_${selectedDate.toDateString()}`,
-      JSON.stringify(selectedTimes)
-    );
-  }, [selectedTimes, selectedDate]);
-
-  // Update amount when earnings prop changes
-  useEffect(() => {
-    setAmount(earnings !== null && earnings !== undefined ? earnings : 0);
-  }, [earnings]);
-
-  // Update localSleepHours when sleepHours prop changes
-  useEffect(() => {
-    setLocalSleepHours(
-      sleepHours !== null && sleepHours !== undefined ? sleepHours : 12
-    );
-  }, [sleepHours]);
-
-  // Update localDidWorkout when didWorkout prop changes
-  useEffect(() => {
-    setLocalDidWorkout(didWorkout || false);
-  }, [didWorkout]);
-
-  // Update localProjectsCount when projectsCount prop changes
-  useEffect(() => {
-    setLocalProjectsCount(
-      projectsCount !== null && projectsCount !== undefined ? projectsCount : 0
-    );
-  }, [projectsCount]);
-
   const handleAmountChange = (value) => {
     const newValue = Math.max(value, 0);
     setAmount(newValue);
-    onEarningsChange(newValue);
+    onDataChange(selectedDate, { earnings: newValue });
   };
 
   // For Sleep Hours
   const handleSleepChange = (value) => {
     const newValue = Math.min(Math.max(value, 0), 12);
     setLocalSleepHours(newValue);
-    onSleepChange(newValue);
+    onDataChange(selectedDate, { sleepHours: newValue });
   };
 
   // For Workout Toggle
   const handleWorkoutToggle = () => {
     const newValue = !localDidWorkout;
     setLocalDidWorkout(newValue);
-    onWorkoutChange(newValue);
+    onDataChange(selectedDate, { didWorkout: newValue });
   };
 
   // Handle Time Click
   const handleTimeClick = (hour) => {
     setSelectedTimes((prevTimes) => {
+      let newTimes;
       const index = prevTimes.indexOf(hour);
       if (index !== -1) {
         // If the hour is already selected, remove it
-        const newTimes = prevTimes.filter((time) => time !== hour).sort((a, b) => a - b);
-        return newTimes;
+        newTimes = prevTimes.filter((time) => time !== hour).sort((a, b) => a - b);
       } else {
         // Add the new hour and sort the array
-        const newTimes = [...prevTimes, hour].sort((a, b) => a - b);
-        return newTimes;
+        newTimes = [...prevTimes, hour].sort((a, b) => a - b);
       }
+      calculateHoursWorked(newTimes);
+      onDataChange(selectedDate, { selectedTimes: newTimes });
+      return newTimes;
     });
   };
 
   useEffect(() => {
-    calculateHoursWorked();
+    calculateHoursWorked(selectedTimes);
   }, [selectedTimes]);
 
-  const calculateHoursWorked = () => {
+  const calculateHoursWorked = (times) => {
     let total = 0;
-    for (let i = 0; i < selectedTimes.length; i += 2) {
-      if (selectedTimes[i + 1] !== undefined) {
-        total += selectedTimes[i + 1] - selectedTimes[i];
+    for (let i = 0; i < times.length; i += 2) {
+      if (times[i + 1] !== undefined) {
+        total += times[i + 1] - times[i];
       }
     }
     setHoursWorked(total);
-    onHoursChange(total);
+    onDataChange(selectedDate, { hoursWorked: total });
   };
 
   const formatHour = (hour) => {
@@ -207,19 +167,14 @@ const DayInput = ({
   const resetSelections = () => {
     setSelectedTimes([]);
     setHoursWorked(0);
+    onDataChange(selectedDate, { selectedTimes: [], hoursWorked: 0 });
   };
 
   // Handle Project Count Change
   const handleProjectVisualClick = (value) => {
-    if (localProjectsCount === value) {
-      // If the clicked value is already selected, unselect it
-      setLocalProjectsCount(0);
-      onProjectsChange(0);
-    } else {
-      // Select the new value
-      setLocalProjectsCount(value);
-      onProjectsChange(value);
-    }
+    const newValue = localProjectsCount === value ? 0 : value;
+    setLocalProjectsCount(newValue);
+    onDataChange(selectedDate, { projectsCount: newValue });
   };
 
   return (
@@ -249,7 +204,9 @@ const DayInput = ({
             >
               <FiMinus className="w-6 h-6 text-gray-700" />
             </button>
-            <span className="mx-6 text-2xl font-semibold text-gray-800">${amount.toFixed(2)}</span>
+            <span className="mx-6 text-2xl font-semibold text-gray-800">
+              ${amount.toFixed(2)}
+            </span>
             <button
               onClick={() => handleAmountChange(amount + 10)}
               className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center focus:outline-none hover:bg-gray-300 transition-all duration-200"
@@ -264,7 +221,9 @@ const DayInput = ({
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-3">
               <FiClock className="text-blue-500 w-6 h-6" />
-              <p className="text-gray-700 font-semibold">Hours Worked: {hoursWorked}h</p>
+              <p className="text-gray-700 font-semibold">
+                Hours Worked: {hoursWorked}h
+              </p>
             </div>
             <button
               onClick={resetSelections}
