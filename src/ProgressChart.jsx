@@ -51,6 +51,87 @@ const ProgressChart = ({
     'All': ['Earnings', 'Goal', 'Hours Worked', 'Sleep Hours', 'Workout', 'Won Projects'],
   };
 
+  // Dataset configurations
+  const datasetConfigs = {
+    'Earnings': {
+      type: 'line',
+      label: 'Earnings (USD)',
+      borderWidth: 4,
+      fill: true,
+      tension: 0.1,
+      yAxisID: 'y1',
+      z: 10,
+      datalabels: { display: false },
+    },
+    'Goal': {
+      type: 'line',
+      label: 'Goal',
+      borderWidth: 2,
+      borderDash: [5, 5],
+      fill: false,
+      pointRadius: 0,
+      yAxisID: 'y1',
+      z: 10,
+      datalabels: { display: false },
+    },
+    'Hours Worked': {
+      type: 'line',
+      label: 'Hours Worked',
+      borderWidth: 2,
+      fill: true,
+      tension: 0.1,
+      yAxisID: 'y2',
+      z: 10,
+      datalabels: { display: false },
+    },
+    'Sleep Hours': {
+      type: 'line',
+      label: 'Sleep Hours',
+      borderWidth: 2,
+      fill: false,
+      tension: 0.1,
+      yAxisID: 'y3',
+      z: 1,
+      datalabels: {
+        display: true,
+        align: 'top',
+        formatter: (value) => `${value}h`,
+        font: { weight: 'bold', size: 11 },
+      },
+    },
+    'Workout': {
+      type: 'bar',
+      label: 'Workout',
+      borderWidth: 1,
+      yAxisID: 'y4',
+      z: 1,
+      borderRadius: 5,
+      barPercentage: 0.9,
+      categoryPercentage: 0.9,
+      datalabels: {
+        display: true,
+        align: 'top',
+        formatter: (value) => (value === 1 ? 'Yes' : ''),
+        color: '#666',
+      },
+    },
+    'Won Projects': {
+      type: 'line',
+      label: 'Won Projects',
+      borderWidth: 2,
+      fill: false,
+      tension: 0.1,
+      yAxisID: 'y5',
+      z: 10,
+      datalabels: {
+        display: true,
+        align: 'top',
+        formatter: (value) => `${value}`,
+        font: { weight: 'bold', size: 11 },
+      },
+    },
+  };
+
   // Colors mapping
   const colorMap = {
     'Earnings': {
@@ -88,231 +169,68 @@ const ProgressChart = ({
     labels,
   } = chartData;
 
-  // Build datasets based on selected charts
-  const datasets = [];
+  // Data mapping
+  const dataMap = {
+    'Earnings': earnings,
+    'Goal': isAccumulatedView ? goalLineAccumulated : goalLineDaily,
+    'Hours Worked': hoursWorked,
+    'Sleep Hours': sleepHours,
+    'Workout': didWorkout.map((workedOut) => (workedOut ? 1 : 0)),
+    'Won Projects': projectsCount,
+  };
 
+  // Build datasets based on selected charts
   const selectedDatasets = selectionMap[selectedCharts];
 
-  selectedDatasets.forEach((datasetName) => {
-    switch (datasetName) {
-      case 'Earnings':
-        datasets.push({
-          type: 'line',
-          label: 'Earnings (USD)',
-          data: earnings,
-          borderColor: colorMap['Earnings'].borderColor,
-          backgroundColor: colorMap['Earnings'].backgroundColor,
-          borderWidth: 4,
-          fill: true,
-          tension: 0.1,
-          yAxisID: 'y1',
-          z: 10,
-          datalabels: {
-            display: false,
-          },
-        });
-        break;
-      case 'Goal':
-        datasets.push({
-          type: 'line',
-          label: 'Goal',
-          data: isAccumulatedView ? goalLineAccumulated : goalLineDaily,
-          borderColor: colorMap['Goal'].borderColor,
-          borderWidth: 2,
-          borderDash: [5, 5],
-          fill: false,
-          pointRadius: 0,
-          yAxisID: 'y1',
-          z: 10,
-          datalabels: {
-            display: false,
-          },
-        });
-        break;
-      case 'Hours Worked':
-        datasets.push({
-          type: 'line',
-          label: 'Hours Worked',
-          data: hoursWorked,
-          borderColor: colorMap['Hours Worked'].borderColor,
-          backgroundColor: colorMap['Hours Worked'].backgroundColor,
-          borderWidth: 2,
-          fill: true,
-          tension: 0.1,
-          yAxisID: 'y2',
-          z: 10,
-          datalabels: {
-            display: false,
-          },
-        });
-        break;
-      case 'Sleep Hours':
-        datasets.push({
-          type: 'line',
-          label: 'Sleep Hours',
-          data: sleepHours,
-          borderColor: colorMap['Sleep Hours'].borderColor,
-          backgroundColor: colorMap['Sleep Hours'].backgroundColor,
-          borderWidth: 2,
-          fill: false,
-          tension: 0.1,
-          yAxisID: 'y3',
-          z: 1,
-          datalabels: {
-            display: true,
-            align: 'top',
-            formatter: (value) => `${value}h`,
-            color: colorMap['Sleep Hours'].borderColor,
-            font: {
-              weight: 'bold',
-              size: 11,
-            },
-          },
-        });
-        break;
-      case 'Workout':
-        datasets.push({
-          type: 'bar',
-          label: 'Workout',
-          data: didWorkout.map((workedOut) => (workedOut ? 1 : 0)),
-          backgroundColor: colorMap['Workout'].backgroundColor,
-          borderColor: colorMap['Workout'].borderColor,
-          borderWidth: 1,
-          yAxisID: 'y4',
-          z: 1,
-          borderRadius: 5,
-          barPercentage: 0.9,
-          categoryPercentage: 0.9,
-          datalabels: {
-            display: true,
-            color: '#666',
-            align: 'top',
-            formatter: (value) => (value === 1 ? 'Yes' : ''),
-          },
-        });
-        break;
-      case 'Won Projects':
-        datasets.push({
-          type: 'line',
-          label: 'Won Projects',
-          data: projectsCount,
-          borderColor: colorMap['Won Projects'].borderColor,
-          backgroundColor: colorMap['Won Projects'].backgroundColor,
-          borderWidth: 2,
-          fill: false,
-          tension: 0.1,
-          yAxisID: 'y5',
-          z: 10,
-          datalabels: {
-            display: true,
-            align: 'top',
-            formatter: (value) => `${value}`,
-            color: colorMap['Won Projects'].borderColor,
-            font: {
-              weight: 'bold',
-              size: 11,
-            },
-          },
-        });
-        break;
-      default:
-        break;
-    }
-  });
+  const datasets = selectedDatasets.map((datasetName) => ({
+    ...datasetConfigs[datasetName],
+    data: dataMap[datasetName],
+    ...colorMap[datasetName],
+  }));
 
-  // Define scales based on selected datasets
-  const scales = {
-    x: {
-      grid: { display: false },
-      ticks: {
-        display: true,
-        autoSkip: true,
-        maxTicksLimit: 10,
-      },
-    },
-  };
-
-  // Always include y1 for Earnings and Goal
-  scales['y1'] = {
-    type: 'linear',
-    display: true,
-    position: 'left',
-    beginAtZero: true,
-    ticks: {
-      callback: (value) => `$${value}`,
-    },
-    title: {
+  // Define scales configurations
+  const scalesConfig = {
+    y1: {
+      type: 'linear',
       display: true,
-      text: 'Earnings (USD)',
+      position: 'left',
+      beginAtZero: true,
+      ticks: { callback: (value) => `$${value}` },
+      title: { display: true, text: 'Earnings (USD)' },
+      suggestedMin: 0,
+      z: 10,
     },
-    suggestedMin: 0,
-    z: 10,
-  };
-
-  // Include other scales based on selected datasets
-  if (selectedDatasets.includes('Hours Worked')) {
-    scales['y2'] = {
+    y2: {
       type: 'linear',
       display: true,
       position: 'right',
       beginAtZero: true,
       max: 24,
-      ticks: {
-        display: false,
-      },
-      grid: {
-        drawOnChartArea: false,
-      },
-      title: {
-        display: false,
-      },
+      ticks: { display: false },
+      grid: { drawOnChartArea: false },
       z: 10,
-    };
-  }
-
-  if (selectedDatasets.includes('Sleep Hours')) {
-    scales['y3'] = {
+    },
+    y3: {
       type: 'linear',
       display: true,
       position: 'left',
       beginAtZero: true,
       max: 20,
-      ticks: {
-        display: false,
-      },
-      grid: {
-        drawOnChartArea: false,
-      },
-      title: {
-        display: false,
-      },
+      ticks: { display: false },
+      grid: { drawOnChartArea: false },
       z: 1,
-    };
-  }
-
-  if (selectedDatasets.includes('Workout')) {
-    scales['y4'] = {
+    },
+    y4: {
       type: 'linear',
       display: true,
       position: 'right',
       beginAtZero: true,
       max: 5,
-      ticks: {
-        display: false,
-        stepSize: 1,
-      },
-      grid: {
-        drawOnChartArea: false,
-      },
-      title: {
-        display: false,
-      },
+      ticks: { display: false, stepSize: 1 },
+      grid: { drawOnChartArea: false },
       z: 1,
-    };
-  }
-
-  if (selectedDatasets.includes('Won Projects')) {
-    scales['y5'] = {
+    },
+    y5: {
       type: 'linear',
       display: true,
       position: 'right',
@@ -320,20 +238,25 @@ const ProgressChart = ({
       beginAtZero: true,
       min: 1,
       max: 20,
-      ticks: {
-        stepSize: 1,
-        callback: (value) => value,
-      },
-      grid: {
-        drawOnChartArea: false,
-      },
-      title: {
-        display: true,
-        text: 'Won Projects',
-      },
+      ticks: { stepSize: 1 },
+      grid: { drawOnChartArea: false },
+      title: { display: true, text: 'Won Projects' },
       z: 10,
-    };
-  }
+    },
+  };
+
+  // Include scales based on selected datasets
+  const scales = {
+    x: {
+      grid: { display: false },
+      ticks: { display: true, autoSkip: true, maxTicksLimit: 10 },
+    },
+    y1: scalesConfig.y1, // Always include y1 for 'Earnings' and 'Goal'
+    ...(selectedDatasets.includes('Hours Worked') && { y2: scalesConfig.y2 }),
+    ...(selectedDatasets.includes('Sleep Hours') && { y3: scalesConfig.y3 }),
+    ...(selectedDatasets.includes('Workout') && { y4: scalesConfig.y4 }),
+    ...(selectedDatasets.includes('Won Projects') && { y5: scalesConfig.y5 }),
+  };
 
   const data = {
     labels,
@@ -342,10 +265,7 @@ const ProgressChart = ({
 
   const options = {
     responsive: true,
-    interaction: {
-      mode: 'index',
-      intersect: false,
-    },
+    interaction: { mode: 'index', intersect: false },
     stacked: false,
     scales,
     plugins: {
