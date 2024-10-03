@@ -1,6 +1,14 @@
 // DayInput.jsx
-import React, { useState, useRef, useEffect } from 'react';
-import { FiChevronDown } from 'react-icons/fi';
+import React, { useState, useEffect } from 'react';
+import {
+  FiDollarSign,
+  FiClock,
+  FiMoon,
+  FiActivity,
+  FiBriefcase,
+  FiPlus,
+  FiMinus,
+} from 'react-icons/fi';
 
 // SVG Icons for Start and End Times
 const StartIcon = () => (
@@ -12,7 +20,12 @@ const StartIcon = () => (
     stroke="currentColor"
     aria-hidden="true"
   >
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M9 5l7 7-7 7"
+    />
   </svg>
 );
 
@@ -25,51 +38,129 @@ const EndIcon = () => (
     stroke="currentColor"
     aria-hidden="true"
   >
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M15 19l-7-7 7-7"
+    />
   </svg>
 );
 
-const DayInput = ({ onAddEarnings }) => {
-  // Earnings Input States
-  const [amount, setAmount] = useState('');
-  const [isAnimating, setIsAnimating] = useState(false);
-  const buttonTextRef = useRef(null);
-  const buttonAmountRef = useRef(null);
-  const checkmarkRef = useRef(null);
-
-  // Time Input States
-  const [showTimeInput, setShowTimeInput] = useState(false);
+const DayInput = ({
+  onEarningsChange,
+  onHoursChange,
+  onSleepChange,
+  onWorkoutChange,
+  onProjectsChange,
+  earnings,
+  hours,
+  sleepHours,
+  didWorkout,
+  projectsCount,
+  date,
+  onDateChange,
+}) => {
+  // Local state
+  const [amount, setAmount] = useState(earnings || 0);
   const [selectedTimes, setSelectedTimes] = useState([]);
-  const [hoursWorked, setHoursWorked] = useState(0);
+  const [hoursWorked, setHoursWorked] = useState(hours || 0);
 
-  // New State for Sleep Hours
-  const [sleepHours, setSleepHours] = useState(7); // Default to 7 hours
+  const [localSleepHours, setLocalSleepHours] = useState(
+    sleepHours !== null && sleepHours !== undefined ? sleepHours : 12
+  );
+  const [localDidWorkout, setLocalDidWorkout] = useState(didWorkout || false);
+  const [localProjectsCount, setLocalProjectsCount] = useState(
+    projectsCount !== null && projectsCount !== undefined ? projectsCount : 0
+  );
+  const [selectedDate, setSelectedDate] = useState(date);
 
-  // New State for Workout
-  const [didWorkout, setDidWorkout] = useState(false); // Default to 'No'
+  const hoursArray = Array.from({ length: 24 }, (_, i) => i);
 
-  const hours = Array.from({ length: 24 }, (_, i) => i);
-
-  useEffect(() => {
-    calculateHoursWorked();
-  }, [selectedTimes]);
-
-  const handleAmountChange = (e) => {
-    setAmount(e.target.value);
+  const handleDateChange = (e) => {
+    const newDate = new Date(e.target.value);
+    setSelectedDate(newDate);
+    onDateChange(newDate);
   };
 
+  // Initialize selectedTimes from localStorage
+  useEffect(() => {
+    const storedSelectedTimes =
+      JSON.parse(localStorage.getItem(`selectedTimes_${selectedDate.toDateString()}`)) || [];
+    setSelectedTimes(storedSelectedTimes);
+  }, [selectedDate]);
+
+  // Save selectedTimes to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem(
+      `selectedTimes_${selectedDate.toDateString()}`,
+      JSON.stringify(selectedTimes)
+    );
+  }, [selectedTimes, selectedDate]);
+
+  // Update amount when earnings prop changes
+  useEffect(() => {
+    setAmount(earnings !== null && earnings !== undefined ? earnings : 0);
+  }, [earnings]);
+
+  // Update localSleepHours when sleepHours prop changes
+  useEffect(() => {
+    setLocalSleepHours(
+      sleepHours !== null && sleepHours !== undefined ? sleepHours : 12
+    );
+  }, [sleepHours]);
+
+  // Update localDidWorkout when didWorkout prop changes
+  useEffect(() => {
+    setLocalDidWorkout(didWorkout || false);
+  }, [didWorkout]);
+
+  // Update localProjectsCount when projectsCount prop changes
+  useEffect(() => {
+    setLocalProjectsCount(
+      projectsCount !== null && projectsCount !== undefined ? projectsCount : 0
+    );
+  }, [projectsCount]);
+
+  const handleAmountChange = (value) => {
+    const newValue = Math.max(value, 0);
+    setAmount(newValue);
+    onEarningsChange(newValue);
+  };
+
+  // For Sleep Hours
+  const handleSleepChange = (value) => {
+    const newValue = Math.min(Math.max(value, 0), 12);
+    setLocalSleepHours(newValue);
+    onSleepChange(newValue);
+  };
+
+  // For Workout Toggle
+  const handleWorkoutToggle = () => {
+    const newValue = !localDidWorkout;
+    setLocalDidWorkout(newValue);
+    onWorkoutChange(newValue);
+  };
+
+  // Handle Time Click
   const handleTimeClick = (hour) => {
     setSelectedTimes((prevTimes) => {
       const index = prevTimes.indexOf(hour);
       if (index !== -1) {
         // If the hour is already selected, remove it
-        return prevTimes.filter((time) => time !== hour).sort((a, b) => a - b);
+        const newTimes = prevTimes.filter((time) => time !== hour).sort((a, b) => a - b);
+        return newTimes;
       } else {
         // Add the new hour and sort the array
-        return [...prevTimes, hour].sort((a, b) => a - b);
+        const newTimes = [...prevTimes, hour].sort((a, b) => a - b);
+        return newTimes;
       }
     });
   };
+
+  useEffect(() => {
+    calculateHoursWorked();
+  }, [selectedTimes]);
 
   const calculateHoursWorked = () => {
     let total = 0;
@@ -79,333 +170,248 @@ const DayInput = ({ onAddEarnings }) => {
       }
     }
     setHoursWorked(total);
+    onHoursChange(total);
   };
 
   const formatHour = (hour) => {
     return `${hour.toString().padStart(2, '0')}:00`;
   };
 
-  // Color Palette
-  const colors = {
-    green: 'green-500',        // Primary Green
-    lightGreen: 'green-300',   // Light Green for Start Time
-    orange: 'orange-500',      // Orange for End Time
-    lightOrange: 'yellow-400', // Light Orange for End Time
-    gray: 'gray-100',          // Light Gray for Unselected Times
-    darkGray: 'gray-800',      // Dark Gray for Text
-    blue: 'blue-400',          // Blue for Accents
-  };
-
+  // Adjust getButtonStyle function
   const getButtonStyle = (hour) => {
     const index = selectedTimes.indexOf(hour);
-    if (index === -1) return `bg-${colors.gray} text-${colors.darkGray} hover:bg-${colors.lightGreen}`;
-    if (index % 2 === 0) return `bg-${colors.green} text-white`; // Start time
-    return `bg-${colors.orange} text-white`; // End time
+    if (index === -1) return 'bg-gray-100 text-gray-800';
+    if (index % 2 === 0) return 'bg-green-500 text-white';
+    return 'bg-orange-500 text-white';
   };
 
   const getButtonContent = (hour) => {
     const index = selectedTimes.indexOf(hour);
-    if (index === -1) return formatHour(hour);
+    if (index === -1)
+      return <span className="text-xs">{formatHour(hour)}</span>;
     if (index % 2 === 0)
       return (
         <div className="flex items-center justify-center">
-          {formatHour(hour)}
+          <span className="text-xs">{formatHour(hour)}</span>
           <StartIcon />
         </div>
-      ); // Start time
+      );
     return (
       <div className="flex items-center justify-center">
         <EndIcon />
-        {formatHour(hour)}
+        <span className="text-xs">{formatHour(hour)}</span>
       </div>
-    ); // End time
+    );
   };
 
   const resetSelections = () => {
     setSelectedTimes([]);
     setHoursWorked(0);
-    setDidWorkout(false); // Reset workout toggle
   };
 
-  const toggleTimeInput = () => {
-    setShowTimeInput(!showTimeInput);
-  };
-
-  const animateValue = (start, end, duration) => {
-    let startTimestamp = null;
-    const step = (timestamp) => {
-      if (!startTimestamp) startTimestamp = timestamp;
-      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-      buttonAmountRef.current.textContent = '$' + (progress * (end - start) + start).toFixed(2);
-      if (progress < 1) {
-        window.requestAnimationFrame(step);
-      }
-    };
-    window.requestAnimationFrame(step);
-  };
-
-  const handleSubmit = () => {
-    const parsedAmount = parseFloat(amount);
-    if (!isNaN(parsedAmount)) {
-      setIsAnimating(true);
-
-      // Button animation
-      buttonTextRef.current.classList.add('opacity-0');
-
-      setTimeout(() => {
-        buttonAmountRef.current.classList.remove('opacity-0');
-        animateValue(0, parsedAmount, 2000);
-      }, 300);
-
-      setTimeout(() => {
-        buttonAmountRef.current.classList.add('opacity-0');
-      }, 2500);
-
-      setTimeout(() => {
-        checkmarkRef.current.classList.remove('opacity-0');
-      }, 2800);
-
-      setTimeout(() => {
-        checkmarkRef.current.classList.add('opacity-0');
-      }, 3800);
-
-      setTimeout(() => {
-        buttonTextRef.current.classList.remove('opacity-0');
-        setIsAnimating(false);
-      }, 4100);
-
-      // Pass amount, hoursWorked, sleepHours, and didWorkout to the parent component
-      onAddEarnings(parsedAmount, hoursWorked, sleepHours, didWorkout);
-
-      // Reset Inputs
-      setAmount('');
-      resetSelections();
+  // Handle Project Count Change
+  const handleProjectVisualClick = (value) => {
+    if (localProjectsCount === value) {
+      // If the clicked value is already selected, unselect it
+      setLocalProjectsCount(0);
+      onProjectsChange(0);
+    } else {
+      // Select the new value
+      setLocalProjectsCount(value);
+      onProjectsChange(value);
     }
   };
 
-  // Handle Sleep Hours Change
-  const handleSleepChange = (e) => {
-    setSleepHours(parseInt(e.target.value));
-  };
-
-  // Handle Workout Toggle
-  const handleWorkoutToggle = () => {
-    setDidWorkout(!didWorkout);
-  };
-
   return (
-    <div className="relative mb-8 p-6 bg-white rounded-xl shadow-lg">
-      {/* Reset Button for Time Inputs */}
-      {showTimeInput && (
-        <button
-          onClick={resetSelections}
-          className="absolute top-4 right-4 text-blue-500 text-sm hover:underline focus:outline-none"
-          aria-label="Reset Selections"
-        >
-          Reset
-        </button>
-      )}
+    <div className="relative mb-6 p-6 bg-white rounded-3xl shadow-lg">
+      {/* Date Picker */}
+      <div className="mb-6 flex justify-center">
+        <input
+          type="date"
+          value={selectedDate.toISOString().split('T')[0]} // Format date as YYYY-MM-DD
+          onChange={handleDateChange}
+          className="p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-700"
+        />
+      </div>
 
-      {/* Earnings Input and Submit Button */}
-      <div className="flex flex-col items-center space-y-6">
-        {/* Earnings Input */}
-        <div className="w-full">
-          <h2 className="text-lg font-semibold mb-3 text-center text-gray-600">Add Today's Earnings</h2>
-          <div className="flex justify-center items-center">
-            <div className="relative w-48">
-              <span className="absolute left-3 top-2 text-gray-400 text-lg">$</span>
-              <input
-                type="number"
-                value={amount}
-                onChange={handleAmountChange}
-                onClick={toggleTimeInput} // Added onClick handler
-                className="w-full pl-8 pr-3 py-2 text-lg border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-green-500 transition"
-                placeholder="0.00"
-                step="0.01"
-                aria-label="Earnings Amount"
-              />
-            </div>
+      {/* Main Content */}
+      <div className="flex flex-col space-y-8">
+        {/* Earnings */}
+        <div className="bg-white p-4 rounded-xl shadow-md">
+          <div className="flex items-center space-x-3 mb-4">
+            <FiDollarSign className="text-green-500 w-6 h-6" />
+            <p className="text-gray-700 font-semibold">Earnings</p>
+          </div>
+          <div className="flex items-center justify-center">
+            <button
+              onClick={() => handleAmountChange(amount - 10)}
+              className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center focus:outline-none hover:bg-gray-300 transition-all duration-200"
+            >
+              <FiMinus className="w-6 h-6 text-gray-700" />
+            </button>
+            <span className="mx-6 text-2xl font-semibold text-gray-800">${amount.toFixed(2)}</span>
+            <button
+              onClick={() => handleAmountChange(amount + 10)}
+              className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center focus:outline-none hover:bg-gray-300 transition-all duration-200"
+            >
+              <FiPlus className="w-6 h-6 text-gray-700" />
+            </button>
           </div>
         </div>
 
-        {/* Time Input and Sleep Hours Slider Section */}
-        <div
-          className={`w-full transition-all duration-300 ease-in-out transform ${
-            showTimeInput
-              ? 'max-h-screen opacity-100 translate-y-0'
-              : 'max-h-0 opacity-0 overflow-hidden -translate-y-2'
-          }`}
-        >
-          {/* Hours Worked Display */}
-          <div className="mb-5 text-center">
-            <p className="text-4xl font-bold text-gray-800">{hoursWorked}</p>
-            <p className="text-sm text-gray-500">Hours Worked</p>
-          </div>
-
-          {/* Time Input Grid */}
-          <div className="rounded-lg shadow-sm p-4 mb-6 bg-gray-50">
-            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
-              {hours.map((hour) => (
-                <button
-                  key={hour}
-                  onClick={() => handleTimeClick(hour)}
-                  className={`group relative flex items-center justify-center text-center py-2 px-3 text-sm font-medium transition-colors duration-150 ease-in-out rounded-lg ${getButtonStyle(
-                    hour
-                  )} transform-gpu focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500`}
-                  aria-label={`Select ${formatHour(hour)} as ${
-                    selectedTimes.indexOf(hour) % 2 === 0 ? 'start' : 'end'
-                  } time`}
-                >
-                  {getButtonContent(hour)}
-                  {/* Tooltip */}
-                  {selectedTimes.includes(hour) && (
-                    <span className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full bg-black text-white text-xs rounded px-2 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
-                      {selectedTimes.indexOf(hour) % 2 === 0 ? 'Start Time' : 'End Time'}
-                    </span>
-                  )}
-                </button>
-              ))}
+        {/* Hours Worked and Time Selection */}
+        <div className="bg-white p-4 rounded-xl shadow-md">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <FiClock className="text-blue-500 w-6 h-6" />
+              <p className="text-gray-700 font-semibold">Hours Worked: {hoursWorked}h</p>
             </div>
+            <button
+              onClick={resetSelections}
+              className="text-blue-500 text-sm hover:underline focus:outline-none"
+              aria-label="Reset Selections"
+            >
+              Reset
+            </button>
           </div>
+          <div className="grid grid-cols-8 gap-2">
+            {hoursArray.map((hour) => (
+              <button
+                key={hour}
+                onClick={() => handleTimeClick(hour)}
+                className={`group relative flex items-center justify-center text-center py-1 px-1 text-xs font-medium transition-colors duration-150 ease-in-out rounded-md ${getButtonStyle(
+                  hour
+                )} transform-gpu focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500`}
+                aria-label={`Select ${formatHour(hour)} as ${
+                  selectedTimes.indexOf(hour) % 2 === 0 ? 'start' : 'end'
+                } time`}
+              >
+                {getButtonContent(hour)}
+              </button>
+            ))}
+          </div>
+        </div>
 
-          {/* Custom Styled Sleep Hours Slider */}
-          <div className="w-full mb-6">
-            <h3 className="text-md font-medium mb-3 text-center text-gray-600">Hours of Sleep</h3>
-            <div className="flex flex-col items-center">
-              <div className="relative w-3/4">
-                <input
-                  type="range"
-                  min="1"
-                  max="12"
-                  value={sleepHours}
-                  onChange={handleSleepChange}
-                  className="w-full h-2 bg-gray-200 rounded-full appearance-none focus:outline-none focus:ring-2 focus:ring-green-500"
-                  aria-label="Sleep Hours Slider"
-                />
-                {/* Custom Thumb */}
-                <style jsx>{`
-                  input[type='range']::-webkit-slider-thumb {
-                    appearance: none;
-                    width: 20px;
-                    height: 20px;
-                    background: white;
-                    border: 2px solid #10B981; /* Tailwind green-500 */
-                    border-radius: 50%;
-                    cursor: pointer;
-                    box-shadow: 0 0 2px rgba(0, 0, 0, 0.2);
-                    transition: background 0.3s ease;
-                  }
-
-                  input[type='range']::-webkit-slider-thumb:hover {
-                    background: #f0fdf4; /* Tailwind green-50 */
-                  }
-
-                  input[type='range']::-moz-range-thumb {
-                    width: 20px;
-                    height: 20px;
-                    background: white;
-                    border: 2px solid #10B981;
-                    border-radius: 50%;
-                    cursor: pointer;
-                    box-shadow: 0 0 2px rgba(0, 0, 0, 0.2);
-                    transition: background 0.3s ease;
-                  }
-
-                  input[type='range']::-moz-range-thumb:hover {
-                    background: #f0fdf4;
-                  }
-
-                  input[type='range']::-ms-thumb {
-                    width: 20px;
-                    height: 20px;
-                    background: white;
-                    border: 2px solid #10B981;
-                    border-radius: 50%;
-                    cursor: pointer;
-                    box-shadow: 0 0 2px rgba(0, 0, 0, 0.2);
-                    transition: background 0.3s ease;
-                  }
-
-                  input[type='range']::-ms-thumb:hover {
-                    background: #f0fdf4;
-                  }
-                `}</style>
-                <div className="flex justify-between mt-2 px-1">
-                  {Array.from({ length: 12 }, (_, i) => (
-                    <span key={i} className="text-xs text-gray-500">
-                      {i + 1}h
-                    </span>
-                  ))}
-                </div>
-                <div className="text-center mt-2 text-sm text-gray-700">
-                  {sleepHours} {sleepHours === 1 ? 'hour' : 'hours'}
-                </div>
+        {/* Sleep and Workout */}
+        <div className="flex items-center justify-between bg-white p-4 rounded-xl shadow-md">
+          {/* Sleep Hours */}
+          <div className="flex items-center space-x-3">
+            <FiMoon className="text-blue-500 w-6 h-6" />
+            <div>
+              <p className="text-sm text-gray-500">Sleep Hours</p>
+              <div className="flex items-center mt-2">
+                <button
+                  onClick={() => handleSleepChange(localSleepHours - 1)}
+                  className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center focus:outline-none hover:bg-gray-300 transition-all duration-200"
+                >
+                  <FiMinus className="w-5 h-5 text-gray-700" />
+                </button>
+                <span className="mx-4 text-xl font-semibold text-gray-800">
+                  {localSleepHours}h
+                </span>
+                <button
+                  onClick={() => handleSleepChange(localSleepHours + 1)}
+                  className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center focus:outline-none hover:bg-gray-300 transition-all duration-200"
+                >
+                  <FiPlus className="w-5 h-5 text-gray-700" />
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Workout Toggle Switch */}
-          <div className="w-full mb-6">
-            <h3 className="text-md font-medium mb-3 text-center text-gray-600">Did You Work Out / Walk?</h3>
-            <div className="flex justify-center items-center">
-              <label htmlFor="workout-toggle" className="flex items-center cursor-pointer">
-                {/* Labels */}
-                <span className={`mr-2 text-gray-500 ${didWorkout ? 'opacity-50' : 'opacity-100'}`}>No</span>
-                {/* Hidden Checkbox */}
+          {/* Workout Toggle */}
+          <div className="flex items-center space-x-3">
+            <FiActivity className="text-red-500 w-6 h-6" />
+            <div>
+              <p className="text-sm text-gray-500">Workout</p>
+              <label className="switch">
                 <input
                   type="checkbox"
-                  id="workout-toggle"
-                  className="sr-only"
-                  checked={didWorkout}
+                  checked={localDidWorkout}
                   onChange={handleWorkoutToggle}
                 />
-                {/* Toggle */}
-                <div className="relative">
-                  <div className="block bg-gray-200 w-12 h-6 rounded-full"></div>
-                  <div
-                    className={`absolute left-0 top-0 bg-white w-6 h-6 rounded-full shadow-md transition-transform duration-300 ${
-                      didWorkout ? 'transform translate-x-6 bg-green-500' : ''
-                    }`}
-                  ></div>
-                </div>
-                {/* Labels */}
-                <span className={`ml-2 text-gray-500 ${didWorkout ? 'opacity-100' : 'opacity-50'}`}>Yes</span>
+                <span className="slider round"></span>
               </label>
             </div>
           </div>
         </div>
 
-        {/* Toggle Arrow Button Positioned Below Time Input */}
-        <button
-          onClick={toggleTimeInput}
-          className="p-3 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500"
-          aria-label="Toggle time input"
-        >
-          <FiChevronDown
-            className={`h-6 w-6 transition-transform duration-300 ${showTimeInput ? 'transform rotate-180' : ''}`}
-          />
-        </button>
-
-        {/* Submit Button */}
-        <button
-          onClick={handleSubmit}
-          disabled={isAnimating}
-          className="relative overflow-hidden bg-green-500 text-white font-medium py-3 px-6 rounded-full transition-all duration-300 hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 w-40 h-12"
-        >
-          <span ref={buttonTextRef} className="button-content absolute inset-0 flex items-center justify-center transition-opacity duration-300">
-            Submit
-          </span>
-          <span ref={buttonAmountRef} className="button-content absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300">
-            $0.00
-          </span>
-          <span ref={checkmarkRef} className="button-content absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300">
-            <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="12" cy="12" r="11" fill="#10B981" />
-              <path d="M7 13l3 3 7-7" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </span>
-        </button>
+        {/* Projects */}
+        <div className="bg-white p-4 rounded-xl shadow-md">
+          <div className="flex items-center space-x-3 mb-4">
+            <FiBriefcase className="text-purple-500 w-6 h-6" />
+            <p className="text-gray-700 font-semibold">Won Projects</p>
+          </div>
+          <div className="flex justify-center space-x-2">
+            {Array.from({ length: 5 }, (_, i) => (
+              <button
+                key={i}
+                onClick={() => handleProjectVisualClick(i + 1)}
+                className={`w-10 h-10 rounded-full flex items-center justify-center focus:outline-none transition-all duration-200 ${
+                  localProjectsCount >= i + 1
+                    ? 'bg-purple-500 text-white'
+                    : 'bg-gray-200 text-gray-800'
+                }`}
+                aria-label={`Set projects count to ${i + 1}`}
+              >
+                {localProjectsCount >= i + 1 ? (
+                  <FiBriefcase className="w-5 h-5" />
+                ) : (
+                  <span className="text-sm font-medium">{i + 1}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
+
+      {/* Custom Styles for Switch */}
+      <style jsx>{`
+        .switch {
+          position: relative;
+          display: inline-block;
+          width: 42px;
+          height: 24px;
+        }
+
+        .switch input {
+          opacity: 0;
+          width: 0;
+          height: 0;
+        }
+
+        .slider {
+          position: absolute;
+          cursor: pointer;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: #ccc;
+          transition: 0.4s;
+          border-radius: 24px;
+        }
+
+        .slider:before {
+          position: absolute;
+          content: '';
+          height: 18px;
+          width: 18px;
+          left: 3px;
+          bottom: 3px;
+          background-color: white;
+          transition: 0.4s;
+          border-radius: 50%;
+        }
+
+        input:checked + .slider {
+          background-color: #10b981;
+        }
+
+        input:checked + .slider:before {
+          transform: translateX(18px);
+        }
+      `}</style>
     </div>
   );
 };
