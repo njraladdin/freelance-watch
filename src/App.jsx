@@ -335,7 +335,7 @@ const App = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
+    <div className="max-w-6xl mx-auto px-4 py-8 mb-56">
       <h1 className="text-4xl font-bold text-center mb-10">Progress Tracker</h1>
 
       {/* Goal Selection Dropdown */}
