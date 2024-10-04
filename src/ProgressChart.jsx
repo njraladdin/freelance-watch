@@ -13,7 +13,6 @@ import {
   Filler,
 } from 'chart.js';
 import { Chart } from 'react-chartjs-2';
-import { LineController, BarController } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 
 // Register Chart.js components and the datalabels plugin
@@ -23,8 +22,6 @@ ChartJS.register(
   PointElement,
   LineElement,
   BarElement,
-  LineController,
-  BarController,
   Title,
   Tooltip,
   Legend,
@@ -40,13 +37,18 @@ const ProgressChart = ({
   toggleChartView,
 }) => {
   const [selectedCharts, setSelectedCharts] = useState('Work');
-  const [chartInstance, setChartInstance] = useState(null);
+  const [isMobile, setIsMobile] = useState(false);
 
+  // Detect screen size to toggle mobile view
   useEffect(() => {
-    if (chartInstance) {
-      chartInstance.update();
-    }
-  }, [selectedCharts, isAccumulatedView, chartInstance]);
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 640); // Tailwind's sm breakpoint
+    };
+
+    handleResize(); // Initial check
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleChartSelection = (selection) => {
     setSelectedCharts(selection);
@@ -61,6 +63,8 @@ const ProgressChart = ({
     'All': ['Earnings', 'Goal', 'Hours Worked', 'Sleep Hours', 'Workout', 'Won Projects'],
   };
 
+  const selectedDatasets = selectionMap[selectedCharts];
+
   // Dataset configurations
   const datasetConfigs = {
     'Earnings': {
@@ -72,6 +76,8 @@ const ProgressChart = ({
       yAxisID: 'y1',
       z: 10,
       datalabels: { display: false },
+      pointRadius: isMobile ? 0 : 3, // Hide dots on mobile
+      pointHoverRadius: isMobile ? 0 : 6, // Optionally hide hover dots
     },
     'Goal': {
       type: 'line',
@@ -79,10 +85,11 @@ const ProgressChart = ({
       borderWidth: 2,
       borderDash: [5, 5],
       fill: false,
-      pointRadius: 0,
+      pointRadius: isMobile ? 0 : 3, // Hide dots on mobile
       yAxisID: 'y1',
       z: 10,
       datalabels: { display: false },
+      pointHoverRadius: isMobile ? 0 : 6,
     },
     'Hours Worked': {
       type: 'line',
@@ -93,6 +100,8 @@ const ProgressChart = ({
       yAxisID: 'y2',
       z: 10,
       datalabels: { display: false },
+      pointRadius: isMobile ? 0 : 3, // Hide dots on mobile
+      pointHoverRadius: isMobile ? 0 : 6,
     },
     'Sleep Hours': {
       type: 'line',
@@ -105,9 +114,11 @@ const ProgressChart = ({
       datalabels: {
         display: true,
         align: 'top',
-        formatter: (value) => value !== 0 ? `${value}h` : '',
-        font: { weight: 'bold', size: 11 },
+        formatter: (value) => (value !== 0 ? `${value}h` : ''),
+        font: { weight: 'bold', size: isMobile ? 10 : 11 },
       },
+      pointRadius: isMobile ? 0 : 3, // Hide dots on mobile
+      pointHoverRadius: isMobile ? 0 : 6,
     },
     'Workout': {
       type: 'bar',
@@ -123,6 +134,7 @@ const ProgressChart = ({
         align: 'top',
         formatter: (value) => (value === 1 ? 'Yes' : ''),
         color: '#666',
+        font: { size: isMobile ? 10 : 11 },
       },
     },
     'Won Projects': {
@@ -136,9 +148,11 @@ const ProgressChart = ({
       datalabels: {
         display: true,
         align: 'top',
-        formatter: (value) => value !== 0 ? `${value}` : '',
-        font: { weight: 'bold', size: 11 },
+        formatter: (value) => (value !== 0 ? `${value}` : ''),
+        font: { weight: 'bold', size: isMobile ? 10 : 11 },
       },
+      pointRadius: isMobile ? 0 : 3, // Hide dots on mobile
+      pointHoverRadius: isMobile ? 0 : 6,
     },
   };
 
@@ -190,8 +204,6 @@ const ProgressChart = ({
   };
 
   // Build datasets based on selected charts
-  const selectedDatasets = selectionMap[selectedCharts];
-
   const datasets = selectedDatasets.map((datasetName) => ({
     ...datasetConfigs[datasetName],
     data: dataMap[datasetName],
@@ -202,19 +214,29 @@ const ProgressChart = ({
   const scalesConfig = {
     y1: {
       type: 'linear',
-      display: true,
+      display: true, // Only y1 is displayed
       position: 'left',
       beginAtZero: true,
-      ticks: { callback: (value) => `$${value}` },
-      title: { display: true, text: 'Earnings (USD)' },
+      min: 0, // Ensure starts at 0
+      ticks: { 
+        callback: (value) => `$${value}`, 
+        font: { size: isMobile ? 10 : 12 },
+      },
+      // Removed the y-axis title as per instructions
+      // title: { 
+      //   display: true, 
+      //   text: 'Earnings (USD)', 
+      //   font: { size: isMobile ? 10 : 12 } 
+      // },
       suggestedMin: 0,
       z: 10,
     },
     y2: {
       type: 'linear',
-      display: true,
+      display: false, // Hidden
       position: 'right',
       beginAtZero: true,
+      min: 0, // Ensure starts at 0
       max: 24,
       ticks: { display: false },
       grid: { drawOnChartArea: false },
@@ -222,9 +244,10 @@ const ProgressChart = ({
     },
     y3: {
       type: 'linear',
-      display: true,
+      display: false, // Hidden
       position: 'left',
       beginAtZero: true,
+      min: 0, // Ensure starts at 0
       max: 20,
       ticks: { display: false },
       grid: { drawOnChartArea: false },
@@ -232,9 +255,10 @@ const ProgressChart = ({
     },
     y4: {
       type: 'linear',
-      display: true,
+      display: false, // Hidden
       position: 'right',
       beginAtZero: true,
+      min: 0, // Ensure starts at 0
       max: 5,
       ticks: { display: false, stepSize: 1 },
       grid: { drawOnChartArea: false },
@@ -242,30 +266,43 @@ const ProgressChart = ({
     },
     y5: {
       type: 'linear',
-      display: true,
+      display: false, // Hidden
       position: 'right',
       offset: true,
       beginAtZero: true,
-      min: 1,
+      min: 0, // Ensure starts at 0
       max: 20,
-      ticks: { stepSize: 1 },
+      ticks: { 
+        stepSize: 1,
+        font: { size: isMobile ? 10 : 12 },
+      },
       grid: { drawOnChartArea: false },
-      title: { display: true, text: 'Won Projects' },
+      // Removed the y-axis title as per instructions
+      // title: { 
+      //   display: true, 
+      //   text: 'Won Projects',
+      //   font: { size: isMobile ? 10 : 12 },
+      // },
       z: 10,
     },
   };
 
-  // Include scales based on selected datasets
+  // Include all y-axes in scales, but only y1 is displayed
   const scales = {
     x: {
       grid: { display: false },
-      ticks: { display: true, autoSkip: true, maxTicksLimit: 10 },
+      ticks: { 
+        display: true, 
+        autoSkip: true, 
+        maxTicksLimit: isMobile ? 5 : 10,
+        font: { size: isMobile ? 10 : 12 },
+      },
     },
-    y1: scalesConfig.y1, // Always include y1 for 'Earnings' and 'Goal'
-    ...(selectedDatasets.includes('Hours Worked') && { y2: scalesConfig.y2 }),
-    ...(selectedDatasets.includes('Sleep Hours') && { y3: scalesConfig.y3 }),
-    ...(selectedDatasets.includes('Workout') && { y4: scalesConfig.y4 }),
-    ...(selectedDatasets.includes('Won Projects') && { y5: scalesConfig.y5 }),
+    y1: scalesConfig.y1, // Always include y1
+    y2: scalesConfig.y2, // Include y2 to y5 even if hidden
+    y3: scalesConfig.y3,
+    y4: scalesConfig.y4,
+    y5: scalesConfig.y5,
   };
 
   const data = {
@@ -275,11 +312,20 @@ const ProgressChart = ({
 
   const options = {
     responsive: true,
+    maintainAspectRatio: false,
     interaction: { mode: 'index', intersect: false },
     stacked: false,
     scales,
     plugins: {
-      legend: { display: true, position: 'top' },
+      legend: { 
+        display: true, 
+        position: isMobile ? 'bottom' : 'top',
+        labels: {
+          font: {
+            size: isMobile ? 10 : 12,
+          },
+        },
+      },
       tooltip: {
         callbacks: {
           label: function (context) {
@@ -307,19 +353,22 @@ const ProgressChart = ({
             return `Day ${day}`;
           },
         },
+        titleFont: { size: isMobile ? 12 : 14 },
+        bodyFont: { size: isMobile ? 10 : 12 },
       },
       datalabels: {
         display: true,
         color: 'rgba(102, 102, 102, 0.6)',
         anchor: 'end',
         align: 'top',
+        font: { size: isMobile ? 10 : 11 },
       },
     },
   };
 
   return (
-    <div className="mb-8">
-      <h2 className="text-2xl font-semibold mb-4 border-b pb-2 text-gray-600">
+    <div className="mb-8 px-4">
+      <h2 className="text-xl sm:text-2xl font-semibold mb-4 border-b pb-2 text-gray-600">
         Overview -{' '}
         {new Date().toLocaleString('default', {
           month: 'short',
@@ -327,8 +376,25 @@ const ProgressChart = ({
         })}
       </h2>
       <div className="flex items-center justify-between mb-4 flex-wrap">
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2 flex-wrap">
+        {/* Chart Selection Controls */}
+        {isMobile ? (
+          // Dropdown Select for Mobile
+          <div className="w-full mb-2 sm:mb-0">
+            <select
+              value={selectedCharts}
+              onChange={(e) => handleChartSelection(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+            >
+              <option value="Work">Work</option>
+              <option value="Work & Sleep">Work & Sleep</option>
+              <option value="Work & Workout">Work & Workout</option>
+              <option value="Work & Won Projects">Work & Won Projects</option>
+              <option value="All">All</option>
+            </select>
+          </div>
+        ) : (
+          // Button Group for Desktop
+          <div className="flex items-center space-x-2 overflow-x-auto">
             {[
               'Work',
               'Work & Sleep',
@@ -339,7 +405,7 @@ const ProgressChart = ({
               <button
                 key={tab}
                 onClick={() => handleChartSelection(tab)}
-                className={`px-3 py-1 text-sm rounded transition-colors whitespace-nowrap ${
+                className={`px-3 py-1 text-xs sm:text-sm rounded transition-colors whitespace-nowrap ${
                   selectedCharts === tab
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-200 hover:bg-gray-300'
@@ -349,16 +415,23 @@ const ProgressChart = ({
               </button>
             ))}
           </div>
-        </div>
+        )}
+
+        {/* Toggle View Button */}
         <button
           onClick={toggleChartView}
-          className="mt-2 px-4 py-2 text-sm border border-gray-300 rounded bg-white hover:bg-gray-100 transition-colors whitespace-nowrap"
+          className="mt-2 sm:mt-0 px-3 py-1 text-xs sm:text-sm border border-gray-300 rounded bg-white hover:bg-gray-100 transition-colors whitespace-nowrap"
         >
           Switch to {isAccumulatedView ? 'Daily' : 'Accumulated'} View
         </button>
       </div>
-      <Chart type="line" data={data} options={options} />
+      <div className="w-full overflow-x-auto">
+        <div className={`min-w-[300px] max-w-full h-64 sm:h-80 lg:h-96`}>
+          <Chart type="line" data={data} options={options} />
+        </div>
+      </div>
     </div>
   );
 };
+
 export default ProgressChart;

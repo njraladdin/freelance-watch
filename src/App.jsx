@@ -368,7 +368,7 @@ const App = () => {
         </section>
 
         {/* Progress Section */}
-        <section className="bg-white p-6 rounded-3xl shadow-md">
+        <section className="bg-white p-6 px-1 md:p-6 rounded-3xl shadow-md">
           <ProgressChart
             chartData={chartData}
             goalLineDaily={goalLineDaily}
