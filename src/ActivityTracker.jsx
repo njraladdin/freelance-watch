@@ -1,12 +1,9 @@
-// ActivityTracker.jsx
+// src/ActivityTracker.jsx
 import React from 'react';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 
 const ActivityTracker = ({ activityData, today }) => {
-  // No need to generate dates here since activityData already contains them
-  // We'll rely on activityData to have all necessary information
-
   // Define color levels based on percentage
   const getColorLevel = (percentage) => {
     if (percentage >= 100) return 'bg-yellow-400';
@@ -27,7 +24,7 @@ const ActivityTracker = ({ activityData, today }) => {
     );
   };
 
-  // Calculate the padding based on the first day of the year (or adjust as needed)
+  // Calculate the padding based on the first day of the start date
   const firstDayOfWeek = new Date(activityData[0]?.date).getDay() || 0;
 
   return (

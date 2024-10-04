@@ -1,11 +1,24 @@
-// App.jsx
+// src/App.jsx
 import React, { useState, useEffect } from 'react';
 import DayInput from './DayInput';
 import ProgressChart from './ProgressChart';
 import ActivityTracker from './ActivityTracker';
+import { db } from './firebase'; // Import Firestore
+import {
+  collection,
+  doc,
+  getDocs,
+  setDoc,
+  query,
+  where,
+  Timestamp,
+} from 'firebase/firestore';
 
 const App = () => {
-  const [dailyRecords, setDailyRecords] = useState({});
+  const userId = 'defaultUser'; // Fixed user ID
+
+  const [currentMonthRecords, setCurrentMonthRecords] = useState({});
+  const [pastYearRecords, setPastYearRecords] = useState({});
   const [chartData, setChartData] = useState({
     earnings: [],
     hoursWorked: [],
@@ -21,15 +34,12 @@ const App = () => {
   const [activityData, setActivityData] = useState([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
 
-  // **Loading State**
-  const [isLoaded, setIsLoaded] = useState(false);
+  // **Loading States**
+  const [isCurrentMonthLoaded, setIsCurrentMonthLoaded] = useState(false);
+  const [isPastYearLoaded, setIsPastYearLoaded] = useState(false);
 
-  // Helper function to generate storage key based on year and month
-  const getStorageKey = (date) => {
-    const year = date.getFullYear();
-    const month = (date.getMonth() + 1).toString().padStart(2, '0'); // 01-12
-    return `dailyRecords-${year}-${month}`;
-  };
+  // Firestore Collections
+  const recordsCollection = collection(db, 'users', userId, 'records');
 
   // Helper function to format date key
   const formatDateKey = (date) => {
@@ -43,39 +53,124 @@ const App = () => {
     return new Date(year, month + 1, 0).getDate();
   };
 
-  // **Load data for the current month when selectedDate changes**
-  useEffect(() => {
-    const key = getStorageKey(selectedDate);
-    try {
-      const storedDailyRecords = JSON.parse(localStorage.getItem(key)) || {};
-      setDailyRecords(storedDailyRecords);
-      setIsLoaded(true); // Data has been loaded
-      console.log(`Loaded data for ${key}:`, storedDailyRecords);
-    } catch (error) {
-      console.error('Failed to load daily records:', error);
-      setDailyRecords({});
-      setIsLoaded(true); // Even if failed, prevent saving
-    }
-  }, [selectedDate.getFullYear(), selectedDate.getMonth()]);
+  // Helper function to calculate the start date (today - 365 days)
+  const getStartDate = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const pastYear = new Date(today);
+    pastYear.setDate(today.getDate() - 364); // Including today
+    return pastYear;
+  };
 
-  // **Save dailyRecords to localStorage whenever it changes, but only after loading**
+  // **Load data for the current month**
   useEffect(() => {
-    if (!isLoaded) return; // Prevent saving before loading
-    try {
-      const key = getStorageKey(selectedDate);
-      localStorage.setItem(key, JSON.stringify(dailyRecords));
-      console.log(`Saved data to ${key}:`, dailyRecords);
-    } catch (error) {
-      console.error('Failed to save daily records:', error);
-    }
-  }, [dailyRecords, selectedDate, isLoaded]);
+    const loadCurrentMonthRecords = async () => {
+      const year = selectedDate.getFullYear();
+      const month = selectedDate.getMonth() + 1; // 1-12
+
+      try {
+        const q = query(
+          recordsCollection,
+          where('year', '==', year),
+          where('month', '==', month)
+        );
+        const querySnapshot = await getDocs(q);
+        const records = {};
+        querySnapshot.forEach((docSnap) => {
+          records[docSnap.id] = docSnap.data();
+        });
+        setCurrentMonthRecords(records);
+        setIsCurrentMonthLoaded(true);
+        console.log(`Loaded current month data for ${year}-${month}:`, records);
+      } catch (error) {
+        console.error('Failed to load current month records:', error);
+        setCurrentMonthRecords({});
+        setIsCurrentMonthLoaded(true);
+      }
+    };
+
+    loadCurrentMonthRecords();
+  }, [selectedDate]);
+
+  // **Load data for the past year**
+  useEffect(() => {
+    const loadPastYearRecords = async () => {
+      const startDate = getStartDate();
+      const endDate = new Date();
+      endDate.setHours(0, 0, 0, 0);
+
+      const startDateKey = formatDateKey(startDate);
+      const endDateKey = formatDateKey(endDate);
+
+      try {
+        const q = query(
+          recordsCollection,
+          where('date', '>=', startDateKey),
+          where('date', '<=', endDateKey)
+        );
+        const querySnapshot = await getDocs(q);
+        const records = {};
+        querySnapshot.forEach((docSnap) => {
+          records[docSnap.id] = docSnap.data();
+        });
+        setPastYearRecords(records);
+        setIsPastYearLoaded(true);
+        console.log(`Loaded past year data from ${startDateKey} to ${endDateKey}:`, records);
+      } catch (error) {
+        console.error('Failed to load past year records:', error);
+        setPastYearRecords({});
+        setIsPastYearLoaded(true);
+      }
+    };
+
+    loadPastYearRecords();
+  }, []);
+
+  // **Save currentMonthRecords to Firestore whenever it changes, but only after loading**
+  useEffect(() => {
+    if (!isCurrentMonthLoaded) return; // Prevent saving before loading
+
+    const saveCurrentMonthRecords = async () => {
+      try {
+        const year = selectedDate.getFullYear();
+        const month = selectedDate.getMonth() + 1;
+        const daysInMonth = getDaysInMonth(selectedDate);
+
+        const batchPromises = [];
+
+        for (let day = 1; day <= daysInMonth; day++) {
+          const date = new Date(year, selectedDate.getMonth(), day);
+          const dateKey = formatDateKey(date);
+          const record = currentMonthRecords[dateKey];
+
+          if (record) {
+            const recordDocRef = doc(recordsCollection, dateKey);
+            const recordData = {
+              ...record,
+              date: dateKey,
+              year,
+              month,
+            };
+            batchPromises.push(setDoc(recordDocRef, recordData, { merge: true }));
+          }
+        }
+
+        await Promise.all(batchPromises);
+        console.log(`Saved current month data for ${year}-${month}:`, currentMonthRecords);
+      } catch (error) {
+        console.error('Failed to save current month records:', error);
+      }
+    };
+
+    saveCurrentMonthRecords();
+  }, [currentMonthRecords, selectedDate, isCurrentMonthLoaded]);
 
   // **Update chart data and activity data whenever dependencies change**
   useEffect(() => {
-    if (!isLoaded) return; // Ensure data is loaded before updating chart
+    if (!isCurrentMonthLoaded || !isPastYearLoaded) return; // Ensure data is loaded before updating chart
     updateChartData();
-    updateActivityData(); // Also update activity data
-  }, [dailyRecords, selectedDate, selectedGoal, isAccumulatedView, isLoaded]);
+    updateActivityData();
+  }, [currentMonthRecords, pastYearRecords, selectedDate, selectedGoal, isAccumulatedView, isCurrentMonthLoaded, isPastYearLoaded]);
 
   const updateChartData = () => {
     const year = selectedDate.getFullYear();
@@ -104,7 +199,7 @@ const App = () => {
       // Determine if the day is in the past
       const isPastDay = date < today;
 
-      const record = dailyRecords[dateKey] || {};
+      const record = currentMonthRecords[dateKey] || {};
 
       // For each data point, set to 0 if missing and it's a past day
       const earning = isPastDay
@@ -172,7 +267,7 @@ const App = () => {
     const dates = getLastYearDates(today);
     const data = dates.map((date) => {
       const dateKey = formatDateKey(date);
-      const record = dailyRecords[dateKey] || {};
+      const record = pastYearRecords[dateKey] || {};
       const earnings = record.earnings || 0;
       const dailyGoal = record.dailyGoal || (selectedGoal / getDaysInMonth(date));
       const percentage = dailyGoal > 0 ? (earnings / dailyGoal) * 100 : 0;
@@ -206,12 +301,12 @@ const App = () => {
     setIsAccumulatedView(!isAccumulatedView);
   };
 
-  const handleDataChange = (date, data) => {
+  const handleDataChange = async (date, data) => {
     const key = formatDateKey(date);
     const daysInMonth = getDaysInMonth(date);
     const dailyGoal = selectedGoal / daysInMonth;
 
-    setDailyRecords((prevRecords) => ({
+    setCurrentMonthRecords((prevRecords) => ({
       ...prevRecords,
       [key]: {
         ...prevRecords[key],
@@ -219,11 +314,24 @@ const App = () => {
         dailyGoal, // Store dailyGoal for the day
       },
     }));
+
+    // Update pastYearRecords if the date is within the past year
+    const startDate = getStartDate();
+    if (date >= startDate && date <= new Date()) {
+      setPastYearRecords((prevRecords) => ({
+        ...prevRecords,
+        [key]: {
+          ...prevRecords[key],
+          ...data,
+          dailyGoal,
+        },
+      }));
+    }
   };
 
   const getRecordForSelectedDate = () => {
     const dateKey = formatDateKey(selectedDate);
-    return dailyRecords[dateKey] || {};
+    return currentMonthRecords[dateKey] || {};
   };
 
   return (
