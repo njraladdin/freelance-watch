@@ -1,5 +1,5 @@
-// DayInput.jsx
-import React from 'react';
+// src/DayInput.jsx
+import React, { useEffect } from 'react';
 import {
   FiDollarSign,
   FiClock,
@@ -22,8 +22,13 @@ const EndIcon = () => (
 );
 
 const DayInput = ({ onDataChange, record, date, onDateChange }) => {
-  // Local state for inputs that need to be managed locally
+  // Local state for selected times
   const [selectedTimes, setSelectedTimes] = React.useState(record.selectedTimes || []);
+
+  // Synchronize selectedTimes with record.selectedTimes prop
+  useEffect(() => {
+    setSelectedTimes(record.selectedTimes || []);
+  }, [record.selectedTimes]);
 
   const hoursArray = Array.from({ length: 24 }, (_, i) => i);
 
@@ -52,18 +57,19 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
   today.setHours(0, 0, 0, 0); // Normalize today's date
   const isToday = date.toDateString() === today.toDateString();
 
+  // Handle Earnings Change
   const handleAmountChange = (value) => {
     const newValue = Math.max(value, 0);
     onDataChange(date, { earnings: newValue });
   };
 
-  // For Sleep Hours
+  // Handle Sleep Hours Change
   const handleSleepChange = (value) => {
     const newValue = Math.min(Math.max(value, 0), 12);
     onDataChange(date, { sleepHours: newValue });
   };
 
-  // For Workout Toggle
+  // Handle Workout Toggle
   const handleWorkoutToggle = () => {
     const newValue = !record.didWorkout;
     onDataChange(date, { didWorkout: newValue });
@@ -81,17 +87,28 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
         // Add the new hour and sort the array
         newTimes = [...prevTimes, hour].sort((a, b) => a - b);
       }
-      calculateHoursWorked(newTimes);
+
+      // Validate if we have pairs (start and end)
+      if (newTimes.length % 2 === 0) {
+        calculateHoursWorked(newTimes);
+      } else {
+        // If there's an unmatched start time, don't calculate yet
+        onDataChange(date, { hoursWorked: record.hoursWorked || 0 });
+      }
+
+      // Update Firestore with selectedTimes
       onDataChange(date, { selectedTimes: newTimes });
       return newTimes;
     });
   };
 
+  // Updated calculateHoursWorked to include inclusive hours
   const calculateHoursWorked = (times) => {
     let total = 0;
     for (let i = 0; i < times.length; i += 2) {
       if (times[i + 1] !== undefined) {
-        total += times[i + 1] - times[i];
+        // Inclusive calculation: add 1
+        total += times[i + 1] - times[i] + 1;
       }
     }
     onDataChange(date, { hoursWorked: total });
@@ -142,9 +159,9 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
   };
 
   return (
-    <div className="mb-16 p-6 bg-white rounded-3xl shadow">
+    <div className="space-y-8">
       {/* Date Picker with Navigation Arrows */}
-      <div className="mb-6 flex justify-center items-center space-x-2">
+      <div className="flex justify-center items-center space-x-4">
         {/* Previous Day Button */}
         <button
           onClick={handlePrevDay}
@@ -159,7 +176,7 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
           type="date"
           value={date.toISOString().split('T')[0]} // Format date as YYYY-MM-DD
           onChange={handleDateChange}
-          className="w-40 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-400 text-gray-700 transition-colors duration-150 ease-in-out"
+          className="w-48 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-400 text-gray-700 transition-colors duration-150 ease-in-out"
         />
 
         {/* Next Day Button */}
@@ -178,10 +195,10 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
       </div>
 
       {/* Main Content */}
-      <div className="space-y-6">
-        {/* Earnings */}
-        <div className="flex flex-col bg-gray-50 p-4 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out">
-          <div className="flex items-center space-x-3 mb-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Earned Money */}
+        <div className="flex flex-col bg-gray-50 p-5 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out">
+          <div className="flex items-center space-x-3 mb-3">
             <FiDollarSign className="text-green-500 w-6 h-6 transition-colors duration-150 ease-in-out" />
             <p className="text-lg font-medium text-gray-700">Money Earned</p>
           </div>
@@ -209,9 +226,61 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
           </div>
         </div>
 
-        {/* Sleep Hours */}
-        <div className="flex flex-col bg-gray-50 p-4 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out">
-          <div className="flex items-center space-x-3 mb-2">
+        {/* Projects Won */}
+        <div className="flex flex-col bg-gray-50 p-5 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out">
+          <div className="flex items-center space-x-3 mb-3">
+            <FiBriefcase className="text-purple-500 w-6 h-6 transition-colors duration-150 ease-in-out" />
+            <p className="text-lg font-medium text-gray-700">Projects Won</p>
+          </div>
+          <div className="flex justify-center space-x-2">
+            {Array.from({ length: 5 }, (_, i) => (
+              <button
+                key={i}
+                onClick={() => handleProjectVisualClick(i + 1)}
+                className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors duration-150 ease-in-out ${
+                  (record.projectsCount || 0) >= i + 1
+                    ? 'bg-purple-500 text-white transform hover:scale-110'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300 transform hover:scale-110'
+                }`}
+                aria-label={`Set projects count to ${i + 1}`}
+              >
+                {(record.projectsCount || 0) >= i + 1 ? (
+                  <FiBriefcase className="w-5 h-5 transition-colors duration-150 ease-in-out" />
+                ) : (
+                  <span className="text-sm font-medium transition-opacity duration-150 ease-in-out">
+                    {i + 1}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Did You Exercise? */}
+        <div className="flex flex-col bg-gray-50 p-5 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out">
+          <div className="flex items-center space-x-3 mb-3">
+            <FiActivity className="text-red-500 w-6 h-6 transition-colors duration-150 ease-in-out" />
+            <p className="text-lg font-medium text-gray-700">Did You Exercise?</p>
+          </div>
+          <div className="flex items-center justify-center space-x-4">
+            <span className="text-gray-600">No</span>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={record.didWorkout || false}
+                onChange={handleWorkoutToggle}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-green-500 rounded-full peer peer-checked:bg-green-500 transition-colors duration-150 ease-in-out"></div>
+              <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-150 ease-in-out transform peer-checked:translate-x-5"></div>
+            </label>
+            <span className="text-gray-600">Yes</span>
+          </div>
+        </div>
+
+        {/* Sleep Time */}
+        <div className="flex flex-col bg-gray-50 p-5 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out">
+          <div className="flex items-center space-x-3 mb-3">
             <FiMoon className="text-blue-500 w-6 h-6 transition-colors duration-150 ease-in-out" />
             <p className="text-lg font-medium text-gray-700">Sleep Time</p>
           </div>
@@ -239,31 +308,9 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
           </div>
         </div>
 
-        {/* Workout Toggle with 'Yes' and 'No' Labels */}
-        <div className="flex flex-col bg-gray-50 p-4 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out">
-          <div className="flex items-center space-x-3 mb-2">
-            <FiActivity className="text-red-500 w-6 h-6 transition-colors duration-150 ease-in-out" />
-            <p className="text-lg font-medium text-gray-700">Did You Exercise?</p>
-          </div>
-          <div className="flex items-center justify-center space-x-4">
-            <span className="text-gray-600">No</span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={record.didWorkout || false}
-                onChange={handleWorkoutToggle}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-green-500 rounded-full peer peer-checked:bg-green-500 transition-colors duration-150 ease-in-out"></div>
-              <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-150 ease-in-out transform peer-checked:translate-x-5"></div>
-            </label>
-            <span className="text-gray-600">Yes</span>
-          </div>
-        </div>
-
-        {/* Hours Worked and Time Selection */}
-        <div className="flex flex-col bg-gray-50 p-4 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out">
-          <div className="flex items-center justify-between mb-3">
+        {/* Work Hours (Full Width on Desktop) */}
+        <div className="flex flex-col bg-gray-50 p-5 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out md:col-span-2">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-3">
               <FiClock className="text-blue-500 w-6 h-6 transition-colors duration-150 ease-in-out" />
               <p className="text-lg font-medium text-gray-700">Work Hours</p>
@@ -298,105 +345,7 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
             ))}
           </div>
         </div>
-
-        {/* Projects */}
-        <div className="flex flex-col bg-gray-50 p-4 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out">
-          <div className="flex items-center space-x-3 mb-2">
-            <FiBriefcase className="text-purple-500 w-6 h-6 transition-colors duration-150 ease-in-out" />
-            <p className="text-lg font-medium text-gray-700">Projects Won</p>
-          </div>
-          <div className="flex justify-center space-x-2">
-            {Array.from({ length: 5 }, (_, i) => (
-              <button
-                key={i}
-                onClick={() => handleProjectVisualClick(i + 1)}
-                className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors duration-150 ease-in-out ${
-                  (record.projectsCount || 0) >= i + 1
-                    ? 'bg-purple-500 text-white transform hover:scale-110'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300 transform hover:scale-110'
-                }`}
-                aria-label={`Set projects count to ${i + 1}`}
-              >
-                {(record.projectsCount || 0) >= i + 1 ? (
-                  <FiBriefcase className="w-5 h-5 transition-colors duration-150 ease-in-out" />
-                ) : (
-                  <span className="text-sm font-medium transition-opacity duration-150 ease-in-out">
-                    {i + 1}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
-
-      {/* Custom Styles for Switch */}
-      <style jsx>{`
-        /* Custom Switch Styles */
-        .switch {
-          position: relative;
-          display: inline-block;
-          width: 50px;
-          height: 24px;
-        }
-
-        .switch input {
-          opacity: 0;
-          width: 0;
-          height: 0;
-        }
-
-        .slider {
-          position: absolute;
-          cursor: pointer;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background-color: #ccc;
-          transition: background-color 0.4s ease-in-out;
-          border-radius: 24px;
-        }
-
-        .slider:before {
-          position: absolute;
-          content: '';
-          height: 20px;
-          width: 20px;
-          left: 2px;
-          bottom: 2px;
-          background-color: white;
-          transition: transform 0.4s ease-in-out;
-          border-radius: 50%;
-        }
-
-        input:checked + .slider {
-          background-color: #10b981;
-        }
-
-        input:checked + .slider:before {
-          transform: translateX(26px);
-        }
-
-        /* Responsive Adjustments */
-        @media (max-width: 640px) {
-          .switch {
-            width: 44px;
-            height: 20px;
-          }
-
-          .slider:before {
-            height: 16px;
-            width: 16px;
-            left: 2px;
-            bottom: 2px;
-          }
-
-          input:checked + .slider:before {
-            transform: translateX(22px);
-          }
-        }
-      `}</style>
     </div>
   );
 };

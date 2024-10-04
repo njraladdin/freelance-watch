@@ -335,11 +335,14 @@ const App = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 relative">
-      <div className="absolute top-8 right-4">
+    <div className="max-w-6xl mx-auto px-4 py-8">
+      <h1 className="text-4xl font-bold text-center mb-10">Progress Tracker</h1>
+
+      {/* Goal Selection Dropdown */}
+      <div className="flex justify-end mb-6">
         <select
           id="goalSelect"
-          className="goal-select bg-gray-200 text-gray-700 rounded px-3 py-1 focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="bg-white border border-gray-300 text-gray-700 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
           value={selectedGoal}
           onChange={handleGoalChange}
         >
@@ -350,27 +353,32 @@ const App = () => {
           <option value="30000">Goal: $30,000</option>
         </select>
       </div>
-      <h1 className="text-3xl font-semibold text-center mb-8">Progress Tracker</h1>
 
-      {/* Integrated DayInput Component */}
-      <DayInput
-        onDataChange={handleDataChange}
-        date={selectedDate}
-        onDateChange={setSelectedDate}
-        record={getRecordForSelectedDate()}
-      />
+      <div className="flex flex-col space-y-8">
+        {/* Inputs Section */}
+        <section className="bg-white p-6 rounded-3xl shadow-md">
+        <h2 className="text-2xl font-semibold mb-4 border-b pb-2 text-gray-600">
+        Daily Inputs</h2>
+          <DayInput
+            onDataChange={handleDataChange}
+            date={selectedDate}
+            onDateChange={setSelectedDate}
+            record={getRecordForSelectedDate()}
+          />
+        </section>
 
-      {/* Render the chart */}
-      <ProgressChart
-        chartData={chartData}
-        goalLineDaily={goalLineDaily}
-        goalLineAccumulated={goalLineAccumulated}
-        isAccumulatedView={isAccumulatedView}
-        toggleChartView={toggleChartView}
-      />
-
-      {/* Show earnings activity tracker */}
-      <ActivityTracker activityData={activityData} today={new Date()} />
+        {/* Progress Section */}
+        <section className="bg-white p-6 rounded-3xl shadow-md">
+          <ProgressChart
+            chartData={chartData}
+            goalLineDaily={goalLineDaily}
+            goalLineAccumulated={goalLineAccumulated}
+            isAccumulatedView={isAccumulatedView}
+            toggleChartView={toggleChartView}
+          />
+          <ActivityTracker activityData={activityData} today={new Date()} />
+        </section>
+      </div>
     </div>
   );
 };

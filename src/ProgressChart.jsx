@@ -308,19 +308,16 @@ const ProgressChart = ({
   };
 
   return (
-    <div className="mb-12">
+    <div className="mb-8">
+      <h2 className="text-2xl font-semibold mb-4 border-b pb-2 text-gray-600">
+        Overview -{' '}
+        {new Date().toLocaleString('default', {
+          month: 'short',
+          year: 'numeric',
+        })}
+      </h2>
       <div className="flex items-center justify-between mb-4 flex-wrap">
         <div className="flex items-center space-x-4">
-          <h2
-            id="earningsOverviewTitle"
-            className="text-lg font-medium text-gray-500"
-          >
-            Overview -{' '}
-            {new Date().toLocaleString('default', {
-              month: 'short',
-              year: 'numeric',
-            })}
-          </h2>
           <div className="flex items-center space-x-2 flex-wrap">
             {[
               'Work',
@@ -332,7 +329,7 @@ const ProgressChart = ({
               <button
                 key={tab}
                 onClick={() => handleChartSelection(tab)}
-                className={`px-2 py-1 text-xs rounded transition-colors whitespace-nowrap ${
+                className={`px-3 py-1 text-sm rounded transition-colors whitespace-nowrap ${
                   selectedCharts === tab
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-200 hover:bg-gray-300'
@@ -345,7 +342,7 @@ const ProgressChart = ({
         </div>
         <button
           onClick={toggleChartView}
-          className="ml-4 mt-2 px-3 py-1 text-xs border border-gray-300 rounded bg-white hover:bg-gray-100 transition-colors whitespace-nowrap"
+          className="mt-2 px-4 py-2 text-sm border border-gray-300 rounded bg-white hover:bg-gray-100 transition-colors whitespace-nowrap"
         >
           Switch to {isAccumulatedView ? 'Daily' : 'Accumulated'} View
         </button>
