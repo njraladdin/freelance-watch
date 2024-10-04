@@ -11,26 +11,110 @@ import {
   FiChevronLeft,
   FiChevronRight,
 } from 'react-icons/fi';
-
-// React Icons for Start and End Times with Transitions
-const StartIcon = () => (
-  <FiChevronRight className="w-4 h-4 ml-1 text-green-600 transition-colors duration-150 ease-in-out" />
-);
-
-const EndIcon = () => (
-  <FiChevronLeft className="w-4 h-4 mr-1 text-orange-600 transition-colors duration-150 ease-in-out" />
-);
+import { FaWalking } from 'react-icons/fa'; // Importing walking icon from react-icons/fa
 
 const DayInput = ({ onDataChange, record, date, onDateChange }) => {
-  // Local state for selected times
-  const [selectedTimes, setSelectedTimes] = React.useState(record.selectedTimes || []);
+  // Local state for selected work times
+  const [selectedWorkTimes, setSelectedWorkTimes] = React.useState(record.selectedWorkTimes || []);
 
-  // Synchronize selectedTimes with record.selectedTimes prop
+  // Local state for selected sleep times
+  const [selectedSleepTimes, setSelectedSleepTimes] = React.useState(record.selectedSleepTimes || []);
+
+  // Local state for workout and walk toggles
+  const [didWorkout, setDidWorkout] = React.useState(record.didWorkout || false);
+  const [didWalk, setDidWalk] = React.useState(record.didWalk || false);
+
+  // Synchronize selected times with record props
   useEffect(() => {
-    setSelectedTimes(record.selectedTimes || []);
-  }, [record.selectedTimes]);
+    setSelectedWorkTimes(record.selectedWorkTimes || []);
+  }, [record.selectedWorkTimes]);
+
+  useEffect(() => {
+    setSelectedSleepTimes(record.selectedSleepTimes || []);
+  }, [record.selectedSleepTimes]);
+
+  useEffect(() => {
+    setDidWorkout(record.didWorkout || false);
+  }, [record.didWorkout]);
+
+  useEffect(() => {
+    setDidWalk(record.didWalk || false);
+  }, [record.didWalk]);
 
   const hoursArray = Array.from({ length: 24 }, (_, i) => i);
+
+  // Define unique colors for each category
+  const colors = {
+    earnings: {
+      text: 'text-green-500',
+      bg: 'bg-green-500',
+      switch: 'green',
+    },
+    projects: {
+      text: 'text-purple-500',
+      bg: 'bg-purple-500',
+      switch: 'purple',
+    },
+    workHours: {
+      text: 'text-blue-500',
+      bg: 'bg-blue-500',
+      switch: 'blue',
+    },
+    workout: {
+      text: 'text-red-500',
+      bg: 'bg-red-500',
+      switch: 'red',
+    },
+    walk: {
+      text: 'text-indigo-500',
+      bg: 'bg-indigo-500',
+      switch: 'indigo',
+    },
+    sleep: {
+      text: 'text-orange-500',
+      bg: 'bg-orange-500',
+      switch: 'orange',
+    },
+  };
+
+  // **Reusable ToggleSwitch Component**
+  const ToggleSwitch = ({ label, Icon, isChecked, onToggle, color }) => {
+    const colorClasses = colors[color] || colors['earnings']; // Default to 'earnings' if color not found
+
+    return (
+      <div className="flex flex-col bg-gray-50 p-5 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out">
+        <div className={`flex items-center space-x-3 mb-3 ${colorClasses.text}`}>
+          <Icon className={`w-6 h-6 transition-colors duration-150 ease-in-out ${colorClasses.text}`} />
+          <p className="text-lg font-medium text-gray-700">{label}</p>
+        </div>
+        <div className="flex items-center justify-center space-x-4">
+          <span className="text-gray-600">No</span>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isChecked}
+              onChange={onToggle}
+              className="sr-only peer"
+              aria-label={`Toggle ${label}`}
+            />
+            <div
+              className={`w-11 h-6 ${isChecked ? colors[color].bg : 'bg-gray-300'} peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-${colors[color].switch}-500 rounded-full transition-colors duration-150 ease-in-out`}
+            ></div>
+            <div
+              className={`absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-150 ease-in-out ${
+                isChecked ? `transform translate-x-5` : ''
+              }`}
+            ></div>
+          </label>
+          <span className="text-gray-600">Yes</span>
+        </div>
+      </div>
+    );
+  };
+
+  const formatHour = (hour) => {
+    return `${hour.toString().padStart(2, '0')}:00`;
+  };
 
   // Handle Date Change via Date Picker
   const handleDateChange = (e) => {
@@ -63,99 +147,122 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
     onDataChange(date, { earnings: newValue });
   };
 
-  // Handle Sleep Hours Change
-  const handleSleepChange = (value) => {
-    const newValue = Math.min(Math.max(value, 0), 12);
-    onDataChange(date, { sleepHours: newValue });
-  };
-
   // Handle Workout Toggle
   const handleWorkoutToggle = () => {
-    const newValue = !record.didWorkout;
+    const newValue = !didWorkout;
+    setDidWorkout(newValue);
     onDataChange(date, { didWorkout: newValue });
   };
 
-  // Handle Time Click
-  const handleTimeClick = (hour) => {
-    setSelectedTimes((prevTimes) => {
-      let newTimes;
-      const index = prevTimes.indexOf(hour);
-      if (index !== -1) {
-        // If the hour is already selected, remove it
-        newTimes = prevTimes.filter((time) => time !== hour).sort((a, b) => a - b);
-      } else {
-        // Add the new hour and sort the array
-        newTimes = [...prevTimes, hour].sort((a, b) => a - b);
-      }
-
-      // Validate if we have pairs (start and end)
-      if (newTimes.length % 2 === 0) {
-        calculateHoursWorked(newTimes);
-      } else {
-        // If there's an unmatched start time, don't calculate yet
-        onDataChange(date, { hoursWorked: record.hoursWorked || 0 });
-      }
-
-      // Update Firestore with selectedTimes
-      onDataChange(date, { selectedTimes: newTimes });
-      return newTimes;
-    });
-  };
-
-  // Updated calculateHoursWorked to include inclusive hours
-  const calculateHoursWorked = (times) => {
-    let total = 0;
-    for (let i = 0; i < times.length; i += 2) {
-      if (times[i + 1] !== undefined) {
-        // Inclusive calculation: add 1
-        total += times[i + 1] - times[i] + 1;
-      }
-    }
-    onDataChange(date, { hoursWorked: total });
-  };
-
-  const formatHour = (hour) => {
-    return `${hour.toString().padStart(2, '0')}:00`;
-  };
-
-  // Adjust getButtonStyle function with smoother transitions
-  const getButtonStyle = (hour) => {
-    const index = selectedTimes.indexOf(hour);
-    if (index === -1)
-      return 'bg-gray-100 text-gray-700 transition-colors duration-150 ease-in-out';
-    if (index % 2 === 0)
-      return 'bg-green-500 text-white transition-colors duration-150 ease-in-out';
-    return 'bg-orange-500 text-white transition-colors duration-150 ease-in-out';
-  };
-
-  const getButtonContent = (hour) => {
-    const index = selectedTimes.indexOf(hour);
-    if (index === -1)
-      return <span className="text-xs">{formatHour(hour)}</span>;
-    if (index % 2 === 0)
-      return (
-        <div className="flex items-center justify-center transition-colors duration-150 ease-in-out">
-          <span className="text-xs">{formatHour(hour)}</span>
-          <StartIcon />
-        </div>
-      );
-    return (
-      <div className="flex items-center justify-center transition-colors duration-150 ease-in-out">
-        <EndIcon />
-        <span className="text-xs">{formatHour(hour)}</span>
-      </div>
-    );
-  };
-
-  const resetSelections = () => {
-    setSelectedTimes([]);
-    onDataChange(date, { selectedTimes: [], hoursWorked: 0 });
+  // Handle Walk Toggle
+  const handleWalkToggle = () => {
+    const newValue = !didWalk;
+    setDidWalk(newValue);
+    onDataChange(date, { didWalk: newValue });
   };
 
   // Handle Project Count Change
   const handleProjectVisualClick = (value) => {
     const newValue = record.projectsCount === value ? 0 : value;
     onDataChange(date, { projectsCount: newValue });
+  };
+
+  // **Reusable TimeRangeSelector Component**
+  const TimeRangeSelector = ({ selectedTimes, onTimeChange, maxHours }) => {
+    const [localSelectedTimes, setLocalSelectedTimes] = React.useState(selectedTimes || []);
+
+    useEffect(() => {
+      setLocalSelectedTimes(selectedTimes || []);
+    }, [selectedTimes]);
+
+    const handleLocalTimeClick = (hour) => {
+      let newTimes = [...localSelectedTimes];
+      const index = newTimes.indexOf(hour);
+      if (index !== -1) {
+        newTimes = newTimes.filter((time) => time !== hour).sort((a, b) => a - b);
+      } else {
+        newTimes.push(hour);
+        newTimes.sort((a, b) => a - b);
+      }
+
+      if (newTimes.length > 2) {
+        // Limit to start and end times only
+        newTimes = newTimes.slice(0, 2);
+      }
+
+      setLocalSelectedTimes(newTimes);
+      onTimeChange(newTimes);
+    };
+
+    const calculateTotalHours = () => {
+      if (localSelectedTimes.length === 2) {
+        let total = localSelectedTimes[1] - localSelectedTimes[0];
+        if (total < 0) total += 24; // Handle overnight
+        return total;
+      }
+      return null;
+    };
+
+    const totalHours = calculateTotalHours();
+
+    return (
+      <div>
+        <div className="flex items-center justify-center space-x-4 mb-4">
+          <p className="text-center text-xl font-semibold text-gray-800">
+            {totalHours !== null ? `${totalHours}h` : 'Select Time'}
+          </p>
+        </div>
+        <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-12 gap-2">
+          {hoursArray.map((hour) => (
+            <button
+              key={hour}
+              onClick={() => handleLocalTimeClick(hour)}
+              className={`flex items-center justify-center p-3 text-sm font-medium rounded-md transition-colors duration-100 ease-in-out ${
+                localSelectedTimes.includes(hour)
+                  ? localSelectedTimes.indexOf(hour) === 0
+                    ? 'bg-green-500 text-white'
+                    : 'bg-orange-500 text-white'
+                  : 'bg-gray-100 text-gray-700'
+              } focus:outline-none focus:ring-2 focus:ring-green-500 transform hover:scale-105 lg:p-4 lg:text-lg`}
+              aria-label={`Select ${formatHour(hour)} as ${
+                localSelectedTimes.indexOf(hour) === 0 ? 'start' : 'end'
+              } time`}
+            >
+              <span className="text-sm font-medium">{formatHour(hour)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // **Handle Work Time Changes from TimeRangeSelector**
+  const handleWorkTimeChange = (newTimes) => {
+    if (newTimes.length === 2) {
+      let total = newTimes[1] - newTimes[0];
+      if (total < 0) total += 24; // Handle overnight
+      onDataChange(date, { hoursWorked: total, selectedWorkTimes: newTimes });
+    } else {
+      onDataChange(date, { hoursWorked: record.hoursWorked || 0, selectedWorkTimes: newTimes });
+    }
+  };
+
+  // **Handle Sleep Time Changes from TimeRangeSelector**
+  const handleSleepTimeChange = (newTimes) => {
+    if (newTimes.length === 2) {
+      let total = newTimes[1] - newTimes[0];
+      if (total < 0) total += 24; // Handle overnight
+      total = Math.min(Math.max(total, 0), 12); // Clamp between 0 and 12
+      onDataChange(date, { sleepHours: total, selectedSleepTimes: newTimes });
+    } else {
+      onDataChange(date, { sleepHours: record.sleepHours || 0, selectedSleepTimes: newTimes });
+    }
+  };
+
+  // **Reset Function for Work Hours**
+  const resetWorkSelections = () => {
+    setSelectedWorkTimes([]);
+    onDataChange(date, { selectedWorkTimes: [], hoursWorked: 0 });
   };
 
   return (
@@ -177,6 +284,7 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
           value={date.toISOString().split('T')[0]} // Format date as YYYY-MM-DD
           onChange={handleDateChange}
           className="w-48 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-400 text-gray-700 transition-colors duration-150 ease-in-out"
+          aria-label="Select Date"
         />
 
         {/* Next Day Button */}
@@ -196,7 +304,7 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
 
       {/* Main Content */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Earned Money */}
+        {/* Money Earned */}
         <div className="flex flex-col bg-gray-50 p-5 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out">
           <div className="flex items-center space-x-3 mb-3">
             <FiDollarSign className="text-green-500 w-6 h-6 transition-colors duration-150 ease-in-out" />
@@ -215,6 +323,7 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
               value={record.earnings || 0}
               onChange={(e) => handleAmountChange(parseFloat(e.target.value) || 0)}
               className="w-24 text-center text-xl font-semibold text-gray-800 border-b-2 border-green-400 focus:outline-none focus:border-green-500 transition-colors duration-150 ease-in-out"
+              aria-label="Earnings Amount"
             />
             <button
               onClick={() => handleAmountChange((record.earnings || 0) + 10)}
@@ -256,59 +365,7 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
           </div>
         </div>
 
-        {/* Did You Exercise? */}
-        <div className="flex flex-col bg-gray-50 p-5 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out">
-          <div className="flex items-center space-x-3 mb-3">
-            <FiActivity className="text-red-500 w-6 h-6 transition-colors duration-150 ease-in-out" />
-            <p className="text-lg font-medium text-gray-700">Did You Exercise?</p>
-          </div>
-          <div className="flex items-center justify-center space-x-4">
-            <span className="text-gray-600">No</span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={record.didWorkout || false}
-                onChange={handleWorkoutToggle}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-green-500 rounded-full peer peer-checked:bg-green-500 transition-colors duration-150 ease-in-out"></div>
-              <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-150 ease-in-out transform peer-checked:translate-x-5"></div>
-            </label>
-            <span className="text-gray-600">Yes</span>
-          </div>
-        </div>
-
-        {/* Sleep Time */}
-        <div className="flex flex-col bg-gray-50 p-5 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out">
-          <div className="flex items-center space-x-3 mb-3">
-            <FiMoon className="text-blue-500 w-6 h-6 transition-colors duration-150 ease-in-out" />
-            <p className="text-lg font-medium text-gray-700">Sleep Time</p>
-          </div>
-          <div className="flex items-center justify-center space-x-4">
-            <button
-              onClick={() => handleSleepChange((record.sleepHours || 8) - 1)}
-              className="w-10 h-10 bg-white border border-gray-300 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors duration-150 ease-in-out transform hover:scale-105"
-              aria-label="Decrease Sleep Hours"
-            >
-              <FiMinus className="w-4 h-4 text-gray-600 transition-colors duration-150 ease-in-out" />
-            </button>
-            <input
-              type="number"
-              value={record.sleepHours !== undefined ? record.sleepHours : 8}
-              onChange={(e) => handleSleepChange(parseInt(e.target.value) || 0)}
-              className="w-20 text-center text-xl font-semibold text-gray-800 border-b-2 border-blue-400 focus:outline-none focus:border-blue-500 transition-colors duration-150 ease-in-out"
-            />
-            <button
-              onClick={() => handleSleepChange((record.sleepHours || 8) + 1)}
-              className="w-10 h-10 bg-white border border-gray-300 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors duration-150 ease-in-out transform hover:scale-105"
-              aria-label="Increase Sleep Hours"
-            >
-              <FiPlus className="w-4 h-4 text-gray-600 transition-colors duration-150 ease-in-out" />
-            </button>
-          </div>
-        </div>
-
-        {/* Work Hours (Full Width on Desktop) */}
+        {/* Work Hours */}
         <div className="flex flex-col bg-gray-50 p-5 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out md:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-3">
@@ -316,34 +373,50 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
               <p className="text-lg font-medium text-gray-700">Work Hours</p>
             </div>
             <button
-              onClick={resetSelections}
+              onClick={resetWorkSelections}
               className="text-sm text-blue-400 hover:text-blue-500 transition-colors duration-150 ease-in-out"
               aria-label="Reset Work Hours"
             >
               Reset
             </button>
           </div>
-          <div className="mb-4">
-            <p className="text-center text-xl font-semibold text-gray-800 transition-colors duration-150 ease-in-out">
-              {record.hoursWorked || 0}h
-            </p>
+
+          <TimeRangeSelector
+            selectedTimes={selectedWorkTimes}
+            onTimeChange={handleWorkTimeChange}
+            maxHours={24}
+          />
+        </div>
+
+        {/* Workout */}
+        <ToggleSwitch
+          label="Did You Workout?"
+          Icon={FiActivity}
+          isChecked={didWorkout}
+          onToggle={handleWorkoutToggle}
+          color="workout"
+        />
+
+        {/* Walk */}
+        <ToggleSwitch
+          label="Did You Take a Walk?"
+          Icon={FaWalking}
+          isChecked={didWalk}
+          onToggle={handleWalkToggle}
+          color="walk"
+        />
+
+        {/* Sleep Time */}
+        <div className="flex flex-col bg-gray-50 p-5 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out md:col-span-2">
+          <div className="flex items-center space-x-3 mb-3">
+            <FiMoon className="text-orange-500 w-6 h-6 transition-colors duration-150 ease-in-out" />
+            <p className="text-lg font-medium text-gray-700">Sleep Time</p>
           </div>
-          <div className="grid grid-cols-6 gap-2">
-            {hoursArray.map((hour) => (
-              <button
-                key={hour}
-                onClick={() => handleTimeClick(hour)}
-                className={`flex flex-col items-center justify-center p-2 text-sm font-medium rounded-md transition-colors duration-150 ease-in-out ${
-                  getButtonStyle(hour)
-                } focus:outline-none focus:ring-2 focus:ring-green-500 transform hover:scale-105`}
-                aria-label={`Select ${formatHour(hour)} as ${
-                  selectedTimes.indexOf(hour) % 2 === 0 ? 'start' : 'end'
-                } time`}
-              >
-                {getButtonContent(hour)}
-              </button>
-            ))}
-          </div>
+          <TimeRangeSelector
+            selectedTimes={selectedSleepTimes}
+            onTimeChange={handleSleepTimeChange}
+            maxHours={12}
+          />
         </div>
       </div>
     </div>

@@ -24,6 +24,7 @@ const App = () => {
     hoursWorked: [],
     sleepHours: [],
     didWorkout: [],
+    didWalk: [],
     projectsCount: [],
     labels: [],
   });
@@ -40,6 +41,40 @@ const App = () => {
 
   // Firestore Collections
   const recordsCollection = collection(db, 'users', userId, 'records');
+
+  // Define unique colors for each category (consistent with DayInput.jsx)
+  const colors = {
+    earnings: {
+      text: 'text-green-500',
+      bg: 'bg-green-500',
+      switch: 'green',
+    },
+    projects: {
+      text: 'text-purple-500',
+      bg: 'bg-purple-500',
+      switch: 'purple',
+    },
+    workHours: {
+      text: 'text-blue-500',
+      bg: 'bg-blue-500',
+      switch: 'blue',
+    },
+    workout: {
+      text: 'text-red-500',
+      bg: 'bg-red-500',
+      switch: 'red',
+    },
+    walk: {
+      text: 'text-indigo-500',
+      bg: 'bg-indigo-500',
+      switch: 'indigo',
+    },
+    sleep: {
+      text: 'text-orange-500',
+      bg: 'bg-orange-500',
+      switch: 'orange',
+    },
+  };
 
   // Helper function to format date key
   const formatDateKey = (date) => {
@@ -115,7 +150,10 @@ const App = () => {
         });
         setPastYearRecords(records);
         setIsPastYearLoaded(true);
-        console.log(`Loaded past year data from ${startDateKey} to ${endDateKey}:`, records);
+        console.log(
+          `Loaded past year data from ${startDateKey} to ${endDateKey}:`,
+          records
+        );
       } catch (error) {
         console.error('Failed to load past year records:', error);
         setPastYearRecords({});
@@ -151,12 +189,17 @@ const App = () => {
               year,
               month,
             };
-            batchPromises.push(setDoc(recordDocRef, recordData, { merge: true }));
+            batchPromises.push(
+              setDoc(recordDocRef, recordData, { merge: true })
+            );
           }
         }
 
         await Promise.all(batchPromises);
-        console.log(`Saved current month data for ${year}-${month}:`, currentMonthRecords);
+        console.log(
+          `Saved current month data for ${year}-${month}:`,
+          currentMonthRecords
+        );
       } catch (error) {
         console.error('Failed to save current month records:', error);
       }
@@ -170,7 +213,15 @@ const App = () => {
     if (!isCurrentMonthLoaded || !isPastYearLoaded) return; // Ensure data is loaded before updating chart
     updateChartData();
     updateActivityData();
-  }, [currentMonthRecords, pastYearRecords, selectedDate, selectedGoal, isAccumulatedView, isCurrentMonthLoaded, isPastYearLoaded]);
+  }, [
+    currentMonthRecords,
+    pastYearRecords,
+    selectedDate,
+    selectedGoal,
+    isAccumulatedView,
+    isCurrentMonthLoaded,
+    isPastYearLoaded,
+  ]);
 
   const updateChartData = () => {
     const year = selectedDate.getFullYear();
@@ -179,11 +230,14 @@ const App = () => {
     // Get the number of days in the selected month
     const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-    const labels = Array.from({ length: daysInMonth }, (_, i) => (i + 1).toString());
+    const labels = Array.from({ length: daysInMonth }, (_, i) =>
+      (i + 1).toString()
+    );
     const earnings = [];
     const hoursWorked = [];
     const sleepHours = [];
     const didWorkout = [];
+    const didWalk = [];
     const projectsCount = [];
 
     let accumulatedEarnings = [];
@@ -202,48 +256,67 @@ const App = () => {
       const record = currentMonthRecords[dateKey] || {};
 
       // For each data point, set to 0 if missing and it's a past day
-      const earning = isPastDay
-        ? record.earnings !== undefined && record.earnings !== null
-          ? record.earnings
-          : 0
-        : record.earnings || null;
+      const earning =
+        isPastDay && (record.earnings === undefined || record.earnings === null)
+          ? 0
+          : record.earnings || null;
 
       totalEarnings += earning || 0;
 
-      earnings.push(earning !== undefined && earning !== null ? earning : (isPastDay ? 0 : null));
+      earnings.push(
+        earning !== undefined && earning !== null ? earning : isPastDay ? 0 : null
+      );
       accumulatedEarnings.push(totalEarnings);
 
       // Hours Worked
-      const hours = isPastDay
-        ? record.hoursWorked !== undefined && record.hoursWorked !== null
-          ? record.hoursWorked
-          : 0
-        : record.hoursWorked || null;
-      hoursWorked.push(hours !== undefined && hours !== null ? hours : (isPastDay ? 0 : null));
+      const hours =
+        isPastDay &&
+        (record.hoursWorked === undefined || record.hoursWorked === null)
+          ? 0
+          : record.hoursWorked || null;
+      hoursWorked.push(
+        hours !== undefined && hours !== null ? hours : isPastDay ? 0 : null
+      );
 
       // Sleep Hours
-      const sleep = isPastDay
-        ? record.sleepHours !== undefined && record.sleepHours !== null
-          ? record.sleepHours
-          : 0
-        : record.sleepHours || null;
-      sleepHours.push(sleep !== undefined && sleep !== null ? sleep : (isPastDay ? 0 : null));
+      const sleep =
+        isPastDay &&
+        (record.sleepHours === undefined || record.sleepHours === null)
+          ? 0
+          : record.sleepHours || null;
+      sleepHours.push(
+        sleep !== undefined && sleep !== null ? sleep : isPastDay ? 0 : null
+      );
 
       // Did Workout
-      const workout = isPastDay
-        ? record.didWorkout !== undefined && record.didWorkout !== null
-          ? record.didWorkout
-          : false
-        : record.didWorkout || false;
-      didWorkout.push(workout !== undefined && workout !== null ? workout : (isPastDay ? false : false));
+      const workout =
+        isPastDay &&
+        (record.didWorkout === undefined || record.didWorkout === null)
+          ? false
+          : record.didWorkout || false;
+      didWorkout.push(
+        workout !== undefined && workout !== null ? workout : isPastDay ? false : false
+      );
+
+      // Did Walk
+      const walk =
+        isPastDay &&
+        (record.didWalk === undefined || record.didWalk === null)
+          ? false
+          : record.didWalk || false;
+      didWalk.push(
+        walk !== undefined && walk !== null ? walk : isPastDay ? false : false
+      );
 
       // Won Projects
-      const projects = isPastDay
-        ? record.projectsCount !== undefined && record.projectsCount !== null
-          ? record.projectsCount
-          : 0
-        : record.projectsCount || null;
-      projectsCount.push(projects !== undefined && projects !== null ? projects : (isPastDay ? 0 : null));
+      const projects =
+        isPastDay &&
+        (record.projectsCount === undefined || record.projectsCount === null)
+          ? 0
+          : record.projectsCount || null;
+      projectsCount.push(
+        projects !== undefined && projects !== null ? projects : isPastDay ? 0 : null
+      );
     }
 
     // Update goal lines
@@ -256,6 +329,7 @@ const App = () => {
       hoursWorked,
       sleepHours,
       didWorkout,
+      didWalk,
       projectsCount,
       labels,
     });
@@ -269,7 +343,8 @@ const App = () => {
       const dateKey = formatDateKey(date);
       const record = pastYearRecords[dateKey] || {};
       const earnings = record.earnings || 0;
-      const dailyGoal = record.dailyGoal || (selectedGoal / getDaysInMonth(date));
+      const dailyGoal =
+        record.dailyGoal || selectedGoal / getDaysInMonth(date);
       const percentage = dailyGoal > 0 ? (earnings / dailyGoal) * 100 : 0;
       return {
         date,
@@ -345,6 +420,7 @@ const App = () => {
           className="bg-white border border-gray-300 text-gray-700 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
           value={selectedGoal}
           onChange={handleGoalChange}
+          aria-label="Select Earnings Goal"
         >
           <option value="3000">Goal: $3,000</option>
           <option value="5000">Goal: $5,000</option>
@@ -357,8 +433,9 @@ const App = () => {
       <div className="flex flex-col space-y-8">
         {/* Inputs Section */}
         <section className="bg-white p-6 rounded-3xl shadow-md">
-        <h2 className="text-2xl font-semibold mb-4 border-b pb-2 text-gray-600">
-        Daily Inputs</h2>
+          <h2 className="text-2xl font-semibold mb-4 border-b pb-2 text-gray-600">
+            Daily Inputs
+          </h2>
           <DayInput
             onDataChange={handleDataChange}
             date={selectedDate}

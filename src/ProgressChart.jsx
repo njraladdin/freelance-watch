@@ -1,4 +1,4 @@
-// ProgressChart.jsx
+// src/ProgressChart.jsx
 import React, { useState, useEffect } from 'react';
 import {
   Chart as ChartJS,
@@ -59,8 +59,9 @@ const ProgressChart = ({
     'Work': ['Earnings', 'Goal', 'Hours Worked'],
     'Work & Sleep': ['Earnings', 'Goal', 'Hours Worked', 'Sleep Hours'],
     'Work & Workout': ['Earnings', 'Goal', 'Hours Worked', 'Workout'],
-    'Work & Won Projects': ['Earnings', 'Goal', 'Hours Worked', 'Won Projects'],
-    'All': ['Earnings', 'Goal', 'Hours Worked', 'Sleep Hours', 'Workout', 'Won Projects'],
+    'Work & Walk': ['Earnings', 'Goal', 'Hours Worked', 'Walk'],
+    'Work, Workout & Walk': ['Earnings', 'Goal', 'Hours Worked', 'Workout', 'Walk'],
+    'All': ['Earnings', 'Goal', 'Hours Worked', 'Sleep Hours', 'Workout', 'Walk'],
   };
 
   const selectedDatasets = selectionMap[selectedCharts];
@@ -137,30 +138,34 @@ const ProgressChart = ({
         font: { size: isMobile ? 10 : 11 },
       },
     },
-    'Won Projects': {
-      type: 'line',
-      label: 'Won Projects',
-      borderWidth: 2,
-      fill: false,
-      tension: 0.1,
+    'Walk': {
+      type: 'bar',
+      label: 'Walk',
+      borderWidth: 1,
       yAxisID: 'y5',
-      z: 10,
+      z: 1,
+      borderRadius: 5,
+      barPercentage: 0.9,
+      categoryPercentage: 0.9,
       datalabels: {
         display: true,
         align: 'top',
-        formatter: (value) => (value !== 0 ? `${value}` : ''),
-        font: { weight: 'bold', size: isMobile ? 10 : 11 },
+        formatter: (value) => (value === 1 ? 'Yes' : ''),
+        color: '#666',
+        font: { size: isMobile ? 10 : 11 },
       },
-      pointRadius: isMobile ? 0 : 3, // Hide dots on mobile
-      pointHoverRadius: isMobile ? 0 : 6,
     },
   };
 
-  // Colors mapping
+  // Colors mapping consistent with DayInput.jsx
   const colorMap = {
     'Earnings': {
       borderColor: '#10B981', // Green
       backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    },
+    'Goal': {
+      borderColor: '#FF6384', // Pink
+      backgroundColor: 'rgba(255, 99, 132, 0.1)',
     },
     'Hours Worked': {
       borderColor: '#2563EB', // Blue
@@ -174,12 +179,9 @@ const ProgressChart = ({
       borderColor: '#EF4444', // Red
       backgroundColor: 'rgba(239, 68, 68, 0.6)',
     },
-    'Won Projects': {
-      borderColor: '#8B5CF6', // Purple
-      backgroundColor: 'rgba(139, 92, 246, 0.1)',
-    },
-    'Goal': {
-      borderColor: '#FF6384', // Pink
+    'Walk': {
+      borderColor: '#6366F1', // Indigo
+      backgroundColor: 'rgba(99, 102, 241, 0.6)',
     },
   };
 
@@ -189,6 +191,7 @@ const ProgressChart = ({
     hoursWorked,
     sleepHours,
     didWorkout,
+    didWalk,
     projectsCount,
     labels,
   } = chartData;
@@ -200,7 +203,7 @@ const ProgressChart = ({
     'Hours Worked': hoursWorked,
     'Sleep Hours': sleepHours,
     'Workout': didWorkout.map((workedOut) => (workedOut ? 1 : 0)),
-    'Won Projects': projectsCount,
+    'Walk': didWalk.map((walked) => (walked ? 1 : 0)),
   };
 
   // Build datasets based on selected charts
@@ -218,16 +221,10 @@ const ProgressChart = ({
       position: 'left',
       beginAtZero: true,
       min: 0, // Ensure starts at 0
-      ticks: { 
-        callback: (value) => `$${value}`, 
+      ticks: {
+        callback: (value) => `$${value}`,
         font: { size: isMobile ? 10 : 12 },
       },
-      // Removed the y-axis title as per instructions
-      // title: { 
-      //   display: true, 
-      //   text: 'Earnings (USD)', 
-      //   font: { size: isMobile ? 10 : 12 } 
-      // },
       suggestedMin: 0,
       z: 10,
     },
@@ -259,8 +256,8 @@ const ProgressChart = ({
       position: 'right',
       beginAtZero: true,
       min: 0, // Ensure starts at 0
-      max: 5,
-      ticks: { display: false, stepSize: 1 },
+      max: 10, // Set max to 10 to limit height
+      ticks: { display: false },
       grid: { drawOnChartArea: false },
       z: 1,
     },
@@ -268,21 +265,11 @@ const ProgressChart = ({
       type: 'linear',
       display: false, // Hidden
       position: 'right',
-      offset: true,
       beginAtZero: true,
       min: 0, // Ensure starts at 0
-      max: 20,
-      ticks: { 
-        stepSize: 1,
-        font: { size: isMobile ? 10 : 12 },
-      },
+      max: 10, // Set max to 10 to limit height
+      ticks: { display: false },
       grid: { drawOnChartArea: false },
-      // Removed the y-axis title as per instructions
-      // title: { 
-      //   display: true, 
-      //   text: 'Won Projects',
-      //   font: { size: isMobile ? 10 : 12 },
-      // },
       z: 10,
     },
   };
@@ -291,9 +278,9 @@ const ProgressChart = ({
   const scales = {
     x: {
       grid: { display: false },
-      ticks: { 
-        display: true, 
-        autoSkip: true, 
+      ticks: {
+        display: true,
+        autoSkip: true,
         maxTicksLimit: isMobile ? 5 : 10,
         font: { size: isMobile ? 10 : 12 },
       },
@@ -317,13 +304,15 @@ const ProgressChart = ({
     stacked: false,
     scales,
     plugins: {
-      legend: { 
-        display: true, 
+      legend: {
+        display: true,
         position: isMobile ? 'bottom' : 'top',
         labels: {
           font: {
             size: isMobile ? 10 : 12,
           },
+          usePointStyle: true,
+          pointStyle: 'circle',
         },
       },
       tooltip: {
@@ -337,6 +326,8 @@ const ProgressChart = ({
               case 'Sleep Hours':
                 return `${label}: ${value}h`;
               case 'Workout':
+                return `${label}: ${value === 1 ? 'Yes' : 'No'}`;
+              case 'Walk':
                 return `${label}: ${value === 1 ? 'Yes' : 'No'}`;
               case 'Hours Worked':
                 return `${label}: ${value}h`;
@@ -384,11 +375,13 @@ const ProgressChart = ({
               value={selectedCharts}
               onChange={(e) => handleChartSelection(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+              aria-label="Select Chart View"
             >
               <option value="Work">Work</option>
               <option value="Work & Sleep">Work & Sleep</option>
               <option value="Work & Workout">Work & Workout</option>
-              <option value="Work & Won Projects">Work & Won Projects</option>
+              <option value="Work & Walk">Work & Walk</option>
+              <option value="Work, Workout & Walk">Work, Workout & Walk</option>
               <option value="All">All</option>
             </select>
           </div>
@@ -399,7 +392,8 @@ const ProgressChart = ({
               'Work',
               'Work & Sleep',
               'Work & Workout',
-              'Work & Won Projects',
+              'Work & Walk',
+              'Work, Workout & Walk',
               'All',
             ].map((tab) => (
               <button
@@ -410,6 +404,7 @@ const ProgressChart = ({
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-200 hover:bg-gray-300'
                 }`}
+                aria-label={`Select ${tab} Chart View`}
               >
                 {tab}
               </button>
@@ -421,6 +416,7 @@ const ProgressChart = ({
         <button
           onClick={toggleChartView}
           className="mt-2 sm:mt-0 px-3 py-1 text-xs sm:text-sm border border-gray-300 rounded bg-white hover:bg-gray-100 transition-colors whitespace-nowrap"
+          aria-label={`Switch to ${isAccumulatedView ? 'Daily' : 'Accumulated'} View`}
         >
           Switch to {isAccumulatedView ? 'Daily' : 'Accumulated'} View
         </button>
