@@ -1,5 +1,5 @@
 // ProgressChart.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -12,7 +12,8 @@ import {
   Legend,
   Filler,
 } from 'chart.js';
-import { Line } from 'react-chartjs-2';
+import { Chart } from 'react-chartjs-2';
+import { LineController, BarController } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 
 // Register Chart.js components and the datalabels plugin
@@ -22,6 +23,8 @@ ChartJS.register(
   PointElement,
   LineElement,
   BarElement,
+  LineController,
+  BarController,
   Title,
   Tooltip,
   Legend,
@@ -37,6 +40,13 @@ const ProgressChart = ({
   toggleChartView,
 }) => {
   const [selectedCharts, setSelectedCharts] = useState('Work');
+  const [chartInstance, setChartInstance] = useState(null);
+
+  useEffect(() => {
+    if (chartInstance) {
+      chartInstance.update();
+    }
+  }, [selectedCharts, isAccumulatedView, chartInstance]);
 
   const handleChartSelection = (selection) => {
     setSelectedCharts(selection);
@@ -347,9 +357,8 @@ const ProgressChart = ({
           Switch to {isAccumulatedView ? 'Daily' : 'Accumulated'} View
         </button>
       </div>
-      <Line data={data} options={options} />
+      <Chart type="line" data={data} options={options} />
     </div>
   );
 };
-
 export default ProgressChart;
