@@ -105,7 +105,7 @@ const ProgressChart = ({
       datalabels: {
         display: true,
         align: 'top',
-        formatter: (value) => `${value}h`,
+        formatter: (value) => value !== 0 ? `${value}h` : '',
         font: { weight: 'bold', size: 11 },
       },
     },
@@ -136,7 +136,7 @@ const ProgressChart = ({
       datalabels: {
         display: true,
         align: 'top',
-        formatter: (value) => `${value}`,
+        formatter: (value) => value !== 0 ? `${value}` : '',
         font: { weight: 'bold', size: 11 },
       },
     },
