@@ -100,7 +100,12 @@ const ProgressChart = ({
       tension: 0.1,
       yAxisID: 'y2',
       z: 10,
-      datalabels: { display: false },
+      datalabels: {
+        display: true,
+        align: 'top',
+        formatter: (value) => (value !== 0 ? `${value}h` : ''),
+        font: { weight: 'bold', size: isMobile ? 10 : 11 },
+      },
       pointRadius: isMobile ? 0 : 3, // Hide dots on mobile
       pointHoverRadius: isMobile ? 0 : 6,
     },

@@ -168,43 +168,45 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
   };
 
   // **Reusable TimeRangeSelector Component**
-  const TimeRangeSelector = ({ selectedTimes, onTimeChange, maxHours }) => {
+  const TimeRangeSelector = ({ selectedTimes, onTimeChange }) => {
+    // Store selected times as a flat array
     const [localSelectedTimes, setLocalSelectedTimes] = React.useState(selectedTimes || []);
-
+  
     useEffect(() => {
       setLocalSelectedTimes(selectedTimes || []);
     }, [selectedTimes]);
-
+  
+    // Handle the selection of times
     const handleLocalTimeClick = (hour) => {
       let newTimes = [...localSelectedTimes];
-      const index = newTimes.indexOf(hour);
-      if (index !== -1) {
-        newTimes = newTimes.filter((time) => time !== hour).sort((a, b) => a - b);
-      } else {
-        newTimes.push(hour);
-        newTimes.sort((a, b) => a - b);
-      }
-
-      if (newTimes.length > 2) {
-        // Limit to start and end times only
-        newTimes = newTimes.slice(0, 2);
-      }
-
+  
+      // Add the selected hour to the flat array
+      newTimes.push(hour);
+      newTimes.sort((a, b) => a - b); // Ensure the times are sorted
+  
       setLocalSelectedTimes(newTimes);
-      onTimeChange(newTimes);
+      onTimeChange(newTimes); // Return the flat array of times
     };
-
     const calculateTotalHours = () => {
-      if (localSelectedTimes.length === 2) {
-        let total = localSelectedTimes[1] - localSelectedTimes[0];
-        if (total < 0) total += 24; // Handle overnight
-        return total;
+      let totalHours = 0;
+    
+      // Iterate over pairs of start/end times in the flat array
+      for (let i = 0; i < localSelectedTimes.length; i += 2) {
+        if (i + 1 < localSelectedTimes.length) {
+          let start = localSelectedTimes[i];
+          let end = localSelectedTimes[i + 1];
+          let hours = end - start;
+    
+          if (hours < 0) hours += 24; // Handle overnight periods
+          totalHours += hours + 1; // Add 1 to include the end time
+        }
       }
-      return null;
+    
+      return totalHours;
     };
-
+    
     const totalHours = calculateTotalHours();
-
+  
     return (
       <div>
         <div className="flex items-center justify-center space-x-4 mb-4">
@@ -219,14 +221,12 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
               onClick={() => handleLocalTimeClick(hour)}
               className={`flex items-center justify-center p-3 text-sm font-medium rounded-md transition-colors duration-100 ease-in-out ${
                 localSelectedTimes.includes(hour)
-                  ? localSelectedTimes.indexOf(hour) === 0
-                    ? 'bg-green-500 text-white'
-                    : 'bg-orange-500 text-white'
+                  ? localSelectedTimes.indexOf(hour) % 2 === 0
+                    ? 'bg-green-500 text-white' // Start time color
+                    : 'bg-orange-500 text-white' // End time color
                   : 'bg-gray-100 text-gray-700'
               } focus:outline-none focus:ring-2 focus:ring-green-500 transform hover:scale-105 lg:p-4 lg:text-lg`}
-              aria-label={`Select ${formatHour(hour)} as ${
-                localSelectedTimes.indexOf(hour) === 0 ? 'start' : 'end'
-              } time`}
+              aria-label={`Select ${formatHour(hour)}`}
             >
               <span className="text-sm font-medium">{formatHour(hour)}</span>
             </button>
@@ -235,6 +235,8 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
       </div>
     );
   };
+  
+  
 
   // **Handle Work Time Changes from TimeRangeSelector**
   const handleWorkTimeChange = (newTimes) => {

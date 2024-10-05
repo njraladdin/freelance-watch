@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import DayInput from './DayInput';
 import ProgressChart from './ProgressChart';
 import ActivityTracker from './ActivityTracker';
@@ -8,14 +8,22 @@ import {
   collection,
   doc,
   getDocs,
+  getDoc,
   setDoc,
   query,
   where,
-  Timestamp,
 } from 'firebase/firestore';
 
 const App = () => {
-  const userId = 'defaultUser'; // Fixed user ID
+  const userId = 'defaultUser'; // Replace with actual user ID in production
+
+  // Memoize Firestore references to prevent useEffect from triggering infinitely
+  const recordsCollection = useMemo(
+    () => collection(db, 'users', userId, 'records'),
+    [userId]
+  );
+
+  const userDocRef = useMemo(() => doc(db, 'users', userId), [userId]);
 
   const [currentMonthRecords, setCurrentMonthRecords] = useState({});
   const [pastYearRecords, setPastYearRecords] = useState({});
@@ -36,11 +44,9 @@ const App = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
 
   // **Loading States**
+  const [isSelectedGoalLoading, setIsSelectedGoalLoading] = useState(true);
   const [isCurrentMonthLoaded, setIsCurrentMonthLoaded] = useState(false);
   const [isPastYearLoaded, setIsPastYearLoaded] = useState(false);
-
-  // Firestore Collections
-  const recordsCollection = collection(db, 'users', userId, 'records');
 
   // Define unique colors for each category (consistent with DayInput.jsx)
   const colors = {
@@ -97,9 +103,64 @@ const App = () => {
     return pastYear;
   };
 
+  // **Fetch selectedGoal from Firestore on mount**
+  useEffect(() => {
+    const fetchSelectedGoal = async () => {
+      try {
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          if (data.selectedGoal) {
+            setSelectedGoal(data.selectedGoal);
+          }
+        } else {
+          // If user document doesn't exist, create it with default selectedGoal
+          await setDoc(userDocRef, { selectedGoal }, { merge: true });
+          console.log('User document created with selectedGoal:', selectedGoal);
+        }
+      } catch (error) {
+        console.error('Failed to fetch selectedGoal:', error);
+      } finally {
+        setIsSelectedGoalLoading(false);
+      }
+    };
+
+    fetchSelectedGoal();
+  }, [userDocRef]);
+
+  // **Save selectedGoal to Firestore whenever it changes**
+  useEffect(() => {
+    const saveSelectedGoal = async () => {
+      try {
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          if (data.selectedGoal !== selectedGoal) {
+            await setDoc(userDocRef, { selectedGoal }, { merge: true });
+            console.log('Selected goal saved:', selectedGoal);
+          } else {
+            console.log('Selected goal is already up-to-date.');
+          }
+        } else {
+          // If user document doesn't exist, create it with selectedGoal
+          await setDoc(userDocRef, { selectedGoal }, { merge: true });
+          console.log('User document created with selectedGoal:', selectedGoal);
+        }
+      } catch (error) {
+        console.error('Failed to save selectedGoal:', error);
+      }
+    };
+
+    // Only save if selectedGoal is defined and valid
+    if (selectedGoal) {
+      saveSelectedGoal();
+    }
+  }, [selectedGoal, userDocRef]);
+
   // **Load data for the current month**
   useEffect(() => {
     const loadCurrentMonthRecords = async () => {
+      setIsCurrentMonthLoaded(false);
       const year = selectedDate.getFullYear();
       const month = selectedDate.getMonth() + 1; // 1-12
 
@@ -115,21 +176,22 @@ const App = () => {
           records[docSnap.id] = docSnap.data();
         });
         setCurrentMonthRecords(records);
-        setIsCurrentMonthLoaded(true);
         console.log(`Loaded current month data for ${year}-${month}:`, records);
       } catch (error) {
         console.error('Failed to load current month records:', error);
         setCurrentMonthRecords({});
+      } finally {
         setIsCurrentMonthLoaded(true);
       }
     };
 
     loadCurrentMonthRecords();
-  }, [selectedDate]);
+  }, [selectedDate, recordsCollection]);
 
   // **Load data for the past year**
   useEffect(() => {
     const loadPastYearRecords = async () => {
+      setIsPastYearLoaded(false);
       const startDate = getStartDate();
       const endDate = new Date();
       endDate.setHours(0, 0, 0, 0);
@@ -149,7 +211,6 @@ const App = () => {
           records[docSnap.id] = docSnap.data();
         });
         setPastYearRecords(records);
-        setIsPastYearLoaded(true);
         console.log(
           `Loaded past year data from ${startDateKey} to ${endDateKey}:`,
           records
@@ -157,56 +218,13 @@ const App = () => {
       } catch (error) {
         console.error('Failed to load past year records:', error);
         setPastYearRecords({});
+      } finally {
         setIsPastYearLoaded(true);
       }
     };
 
     loadPastYearRecords();
-  }, []);
-
-  // **Save currentMonthRecords to Firestore whenever it changes, but only after loading**
-  useEffect(() => {
-    if (!isCurrentMonthLoaded) return; // Prevent saving before loading
-
-    const saveCurrentMonthRecords = async () => {
-      try {
-        const year = selectedDate.getFullYear();
-        const month = selectedDate.getMonth() + 1;
-        const daysInMonth = getDaysInMonth(selectedDate);
-
-        const batchPromises = [];
-
-        for (let day = 1; day <= daysInMonth; day++) {
-          const date = new Date(year, selectedDate.getMonth(), day);
-          const dateKey = formatDateKey(date);
-          const record = currentMonthRecords[dateKey];
-
-          if (record) {
-            const recordDocRef = doc(recordsCollection, dateKey);
-            const recordData = {
-              ...record,
-              date: dateKey,
-              year,
-              month,
-            };
-            batchPromises.push(
-              setDoc(recordDocRef, recordData, { merge: true })
-            );
-          }
-        }
-
-        await Promise.all(batchPromises);
-        console.log(
-          `Saved current month data for ${year}-${month}:`,
-          currentMonthRecords
-        );
-      } catch (error) {
-        console.error('Failed to save current month records:', error);
-      }
-    };
-
-    saveCurrentMonthRecords();
-  }, [currentMonthRecords, selectedDate, isCurrentMonthLoaded]);
+  }, [recordsCollection]);
 
   // **Update chart data and activity data whenever dependencies change**
   useEffect(() => {
@@ -369,7 +387,7 @@ const App = () => {
 
   const handleGoalChange = (event) => {
     const newGoal = parseInt(event.target.value);
-    setSelectedGoal(newGoal);
+    setSelectedGoal(newGoal); // Optimistically update the UI
   };
 
   const toggleChartView = () => {
@@ -381,6 +399,7 @@ const App = () => {
     const daysInMonth = getDaysInMonth(date);
     const dailyGoal = selectedGoal / daysInMonth;
 
+    // Optimistically update currentMonthRecords state
     setCurrentMonthRecords((prevRecords) => ({
       ...prevRecords,
       [key]: {
@@ -402,6 +421,23 @@ const App = () => {
         },
       }));
     }
+
+    // Save the updated record to Firestore
+    try {
+      const recordDocRef = doc(recordsCollection, key);
+      const recordData = {
+        ...data,
+        date: key,
+        year: date.getFullYear(),
+        month: date.getMonth() + 1,
+        dailyGoal,
+      };
+      await setDoc(recordDocRef, recordData, { merge: true });
+      console.log(`Saved record for ${key}:`, recordData);
+    } catch (error) {
+      console.error(`Failed to save record for ${key}:`, error);
+      // Optionally, revert the optimistic update here
+    }
   };
 
   const getRecordForSelectedDate = () => {
@@ -415,19 +451,23 @@ const App = () => {
 
       {/* Goal Selection Dropdown */}
       <div className="flex justify-end mb-6">
-        <select
-          id="goalSelect"
-          className="bg-white border border-gray-300 text-gray-700 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-          value={selectedGoal}
-          onChange={handleGoalChange}
-          aria-label="Select Earnings Goal"
-        >
-          <option value="3000">Goal: $3,000</option>
-          <option value="5000">Goal: $5,000</option>
-          <option value="10000">Goal: $10,000</option>
-          <option value="20000">Goal: $20,000</option>
-          <option value="30000">Goal: $30,000</option>
-        </select>
+        {isSelectedGoalLoading ? (
+          <div className="w-48 h-10 bg-gray-200 animate-pulse rounded"></div>
+        ) : (
+          <select
+            id="goalSelect"
+            className="bg-white border border-gray-300 text-gray-700 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+            value={selectedGoal}
+            onChange={handleGoalChange}
+            aria-label="Select Earnings Goal"
+          >
+            <option value="3000">Goal: $3,000</option>
+            <option value="5000">Goal: $5,000</option>
+            <option value="10000">Goal: $10,000</option>
+            <option value="20000">Goal: $20,000</option>
+            <option value="30000">Goal: $30,000</option>
+          </select>
+        )}
       </div>
 
       <div className="flex flex-col space-y-8">
@@ -436,24 +476,34 @@ const App = () => {
           <h2 className="text-2xl font-semibold mb-4 border-b pb-2 text-gray-600">
             Daily Inputs
           </h2>
-          <DayInput
-            onDataChange={handleDataChange}
-            date={selectedDate}
-            onDateChange={setSelectedDate}
-            record={getRecordForSelectedDate()}
-          />
+          {isCurrentMonthLoaded ? (
+            <DayInput
+              onDataChange={handleDataChange}
+              date={selectedDate}
+              onDateChange={setSelectedDate}
+              record={getRecordForSelectedDate()}
+            />
+          ) : (
+            <div className="w-full h-48 bg-gray-200 animate-pulse rounded"></div>
+          )}
         </section>
 
         {/* Progress Section */}
         <section className="bg-white p-6 px-1 md:p-6 rounded-3xl shadow-md">
-          <ProgressChart
-            chartData={chartData}
-            goalLineDaily={goalLineDaily}
-            goalLineAccumulated={goalLineAccumulated}
-            isAccumulatedView={isAccumulatedView}
-            toggleChartView={toggleChartView}
-          />
-          <ActivityTracker activityData={activityData} today={new Date()} />
+          {isCurrentMonthLoaded && isPastYearLoaded ? (
+            <>
+              <ProgressChart
+                chartData={chartData}
+                goalLineDaily={goalLineDaily}
+                goalLineAccumulated={goalLineAccumulated}
+                isAccumulatedView={isAccumulatedView}
+                toggleChartView={toggleChartView}
+              />
+              <ActivityTracker activityData={activityData} today={new Date()} />
+            </>
+          ) : (
+            <div className="w-full h-96 bg-gray-200 animate-pulse rounded"></div>
+          )}
         </section>
       </div>
     </div>
