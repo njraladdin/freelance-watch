@@ -267,6 +267,11 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
     onDataChange(date, { selectedWorkTimes: [], hoursWorked: 0 });
   };
 
+  const resetSleepSelections = () => {
+    setSelectedSleepTimes([]);
+    onDataChange(date, { selectedSleepTimes: [], sleepHours: 0 });
+  };
+
   return (
     <div className="space-y-8">
       {/* Date Picker with Navigation Arrows */}
@@ -410,9 +415,18 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
 
         {/* Sleep Time */}
         <div className="flex flex-col bg-gray-50 p-5 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out md:col-span-2">
-          <div className="flex items-center space-x-3 mb-3">
-            <FiMoon className="text-orange-500 w-6 h-6 transition-colors duration-150 ease-in-out" />
-            <p className="text-lg font-medium text-gray-700">Sleep Time</p>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center space-x-3">
+              <FiMoon className="text-orange-500 w-6 h-6 transition-colors duration-150 ease-in-out" />
+              <p className="text-lg font-medium text-gray-700">Sleep Time</p>
+            </div>
+            <button
+              onClick={resetSleepSelections}
+              className="text-sm text-blue-400 hover:text-blue-500 transition-colors duration-150 ease-in-out"
+              aria-label="Reset Sleep Time"
+            >
+              Reset
+            </button>
           </div>
           <TimeRangeSelector
             selectedTimes={selectedSleepTimes}
