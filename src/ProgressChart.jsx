@@ -11,6 +11,8 @@ import {
   Tooltip,
   Legend,
   Filler,
+  LineController,    // Import LineController
+  BarController,     // Import BarController
 } from 'chart.js';
 import { Chart } from 'react-chartjs-2';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
@@ -22,6 +24,8 @@ ChartJS.register(
   PointElement,
   LineElement,
   BarElement,
+  LineController,    // Register LineController
+  BarController,     // Register BarController
   Title,
   Tooltip,
   Legend,
@@ -197,7 +201,6 @@ const ProgressChart = ({
     sleepHours,
     didWorkout,
     didWalk,
-    projectsCount,
     labels,
   } = chartData;
 
@@ -365,7 +368,7 @@ const ProgressChart = ({
   return (
     <div className="mb-8 px-4">
       <h2 className="text-xl sm:text-2xl font-semibold mb-4 border-b pb-2 text-gray-600">
-         Metrics -{' '}
+        Metrics -{' '}
         {new Date().toLocaleString('default', {
           month: 'short',
           year: 'numeric',
