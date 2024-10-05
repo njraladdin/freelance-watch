@@ -30,6 +30,7 @@ const getWorkLifeBalanceRating = (ratio) => {
   if (ratio >= 1.5 && ratio < 2.0) return 'Very Heavy';
   return 'Extreme';
 };
+
 const MetricCard = ({ icon: Icon, title, value, subValue, color }) => (
   <div className="flex flex-col bg-gray-50 p-4 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out">
     <div className="flex items-center space-x-2 mb-2">
@@ -47,9 +48,7 @@ const MetricsDashboard = ({
   selectedGoal,
   currentMonthRecords,
   selectedDate,
-  pastYearRecords,
 }) => {
-  // Current Month Calculations (same as before)
   const currentMonthData = useMemo(() => {
     const year = selectedDate.getFullYear();
     const month = selectedDate.getMonth() + 1; // 1-12
@@ -64,10 +63,10 @@ const MetricsDashboard = ({
 
     Object.keys(currentMonthRecords).forEach((dateKey) => {
       const record = currentMonthRecords[dateKey];
-      totalEarnings += record.earnings || 0;
-      totalHoursWorked += record.hoursWorked || 0;
-      totalSleepHours += record.sleepHours || 0;
-      totalProjects += record.projectsCount || 0;
+      totalEarnings += record?.earnings ?? 0;
+      totalHoursWorked += record?.hoursWorked ?? 0;
+      totalSleepHours += record?.sleepHours ?? 0;
+      totalProjects += record?.projectsCount ?? 0;
     });
 
     const averageHoursWorked = calculateAverage(
@@ -106,15 +105,19 @@ const MetricsDashboard = ({
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto px-3 sm:px-5 lg:px-7">
+              <h2 className="text-xl sm:text-2xl font-semibold mb-4 border-b pb-2 text-gray-600">
+        Overview -{' '}
+        {new Date().toLocaleString('default', {
+          month: 'short',
+          year: 'numeric',
+        })}
+      </h2>
       <div className="bg-white p-5 rounded-lg shadow-md">
-        <h2 className="text-xl font-bold mb-3 text-gray-800">Financial Overview</h2>
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3">
           <div className="mb-3 sm:mb-0">
-            <p className="text-xs text-gray-600">Earnings Progress</p>
             <p className="text-2xl font-bold text-gray-800">{formatCurrency(currentMonthData.totalEarnings)}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-600">Goal</p>
             <p className="text-2xl font-bold text-gray-800">{formatCurrency(selectedGoal)}</p>
           </div>
         </div>
@@ -142,17 +145,18 @@ const MetricsDashboard = ({
           color="indigo"
         />
         <MetricCard
+          icon={FiBriefcase}
+          title="Projects Completed"
+          value={currentMonthData.totalProjects}
+          color="purple"
+        />
+        {/* Avg Hours Worked and Avg Sleep placed next to each other */}
+        <MetricCard
           icon={FiBarChart2}
           title="Avg Hours Worked"
           value={`${currentMonthData.averageHoursWorked.toFixed(1)} hrs`}
           subValue="per day"
           color="yellow"
-        />
-        <MetricCard
-          icon={FiBriefcase}
-          title="Projects Completed"
-          value={currentMonthData.totalProjects}
-          color="purple"
         />
         <MetricCard
           icon={FiMoon}
@@ -173,11 +177,11 @@ const MetricsDashboard = ({
       <div className="bg-gray-50 p-5 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out">
         <div className="flex items-center space-x-3 mb-2">
           <FiTarget className="text-orange-500 w-5 h-5 transition-colors duration-150 ease-in-out" />
-          <h2 className="text-lg font-bold text-gray-800">Next Step: Goal Pacing</h2>
+          <h2 className="text-lg font-bold text-gray-800">Next Step</h2>
         </div>
         <p className="text-base text-gray-700">
-          To reach your goal, aim to earn <span className="font-bold text-orange-600">{formatCurrency(currentMonthData.dailyPace)}</span> daily
-          for the next <span className="font-bold text-orange-600">{currentMonthData.remainingDays} days</span>.
+          Earn <span className="font-bold text-orange-600">{formatCurrency(currentMonthData.dailyPace)}</span> daily
+          for the next <span className="font-bold text-orange-600">{currentMonthData.remainingDays} days</span> to hit your goal.
         </p>
       </div>
     </div>
@@ -188,7 +192,6 @@ MetricsDashboard.propTypes = {
   selectedGoal: PropTypes.number.isRequired,
   currentMonthRecords: PropTypes.object.isRequired,
   selectedDate: PropTypes.instanceOf(Date).isRequired,
-  pastYearRecords: PropTypes.object.isRequired,
 };
 
 export default MetricsDashboard;

@@ -365,7 +365,7 @@ const ProgressChart = ({
   return (
     <div className="mb-8 px-4">
       <h2 className="text-xl sm:text-2xl font-semibold mb-4 border-b pb-2 text-gray-600">
-        Overview -{' '}
+         Metrics -{' '}
         {new Date().toLocaleString('default', {
           month: 'short',
           year: 'numeric',
