@@ -27,7 +27,7 @@ const ActivityTracker = ({ activityData, today }) => {
   return (
     <div className="mt-8">
       <h2 className="text-lg font-medium mb-4 text-gray-500">Yearly Earnings Activity</h2>
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap gap-1 justify-center">
         {/* Fill the empty squares for the first week */}
         {[...Array(firstDayOfWeek)].map((_, index) => (
           <div key={`empty-earnings-${index}`} className="w-4 h-4"></div>

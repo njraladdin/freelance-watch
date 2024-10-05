@@ -287,8 +287,8 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
 
         {/* Date Input */}
         <input
-          type="date"
-          value={date.toISOString().split('T')[0]} // Format date as YYYY-MM-DD
+          type="text"
+          value={date.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })} // Format date as dd Month yyyy
           onChange={handleDateChange}
           className="w-48 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-400 text-gray-700 transition-colors duration-150 ease-in-out"
           aria-label="Select Date"

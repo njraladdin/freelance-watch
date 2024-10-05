@@ -5,9 +5,7 @@ import {
   FiClock,
   FiCreditCard,
   FiBarChart2,
-  FiBriefcase,
   FiMoon,
-  FiActivity,
   FiTarget
 } from 'react-icons/fi';
 
@@ -23,24 +21,16 @@ const calculateAverage = (numbers) => {
   return sum / validNumbers.length;
 };
 
-const getWorkLifeBalanceRating = (ratio) => {
-  if (ratio < 0.8) return 'Light';
-  if (ratio >= 0.8 && ratio < 1.0) return 'Balanced';
-  if (ratio >= 1.0 && ratio < 1.5) return 'Heavy';
-  if (ratio >= 1.5 && ratio < 2.0) return 'Very Heavy';
-  return 'Extreme';
-};
-
-const MetricCard = ({ icon: Icon, title, value, subValue, color }) => (
-  <div className="flex flex-col bg-gray-50 p-4 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out">
+const MetricCard = ({ icon: Icon, title, value, subValue, color, compact }) => (
+  <div className={`flex flex-col justify-between items-center bg-gray-50 p-5 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out ${compact ? 'h-32 w-32' : 'h-40 w-40'}`}>
     <div className="flex items-center space-x-2 mb-2">
-      <Icon className={`text-${color}-500 w-5 h-5 transition-colors duration-150 ease-in-out`} />
-      <p className="text-base font-medium text-gray-700">{title}</p>
+      <Icon className={`text-${color}-500 w-6 h-6 transition-colors duration-150 ease-in-out`} />
     </div>
     <div className="flex flex-col items-center justify-center">
-      <p className="text-xl font-semibold text-gray-800">{value}</p>
+      <p className={`text-xl font-semibold text-gray-800`}>{value}</p>
       {subValue && <p className="text-xs text-gray-500 mt-1">{subValue}</p>}
     </div>
+    <p className={`text-sm font-medium text-gray-700 text-center`}>{title}</p>
   </div>
 );
 
@@ -59,14 +49,12 @@ const MetricsDashboard = ({
     let totalEarnings = 0;
     let totalHoursWorked = 0;
     let totalSleepHours = 0;
-    let totalProjects = 0;
 
     Object.keys(currentMonthRecords).forEach((dateKey) => {
       const record = currentMonthRecords[dateKey];
       totalEarnings += record?.earnings ?? 0;
       totalHoursWorked += record?.hoursWorked ?? 0;
       totalSleepHours += record?.sleepHours ?? 0;
-      totalProjects += record?.projectsCount ?? 0;
     });
 
     const averageHoursWorked = calculateAverage(
@@ -84,10 +72,6 @@ const MetricsDashboard = ({
     const remainingGoal = selectedGoal - totalEarnings;
     const dailyPace = remainingDays > 0 ? remainingGoal / remainingDays : 0;
 
-    // Work-Life Balance Indicator
-    const workSleepRatio = averageSleep > 0 ? (averageHoursWorked / averageSleep).toFixed(2) : 'N/A';
-    const balanceRating = getWorkLifeBalanceRating(parseFloat(workSleepRatio));
-
     return {
       totalEarnings,
       selectedGoal,
@@ -97,15 +81,12 @@ const MetricsDashboard = ({
       averageSleep,
       remainingDays,
       dailyPace,
-      totalProjects,
-      workSleepRatio,
-      balanceRating,
     };
   }, [selectedGoal, currentMonthRecords, selectedDate]);
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto px-3 sm:px-5 lg:px-7">
-              <h2 className="text-xl sm:text-2xl font-semibold mb-4 border-b pb-2 text-gray-600">
+      <h2 className="text-xl sm:text-2xl font-semibold mb-4 border-b pb-2 text-gray-600">
         Overview -{' '}
         {new Date().toLocaleString('default', {
           month: 'short',
@@ -129,13 +110,15 @@ const MetricsDashboard = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      {/* Compact Grid with centered square layout */}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-5 justify-center">
         <MetricCard
           icon={FiClock}
           title="Avg Earnings per Hour"
           value={formatCurrency(currentMonthData.averageEarningsPerHour)}
           subValue="per hour"
           color="green"
+          compact={false}
         />
         <MetricCard
           icon={FiCreditCard}
@@ -143,12 +126,7 @@ const MetricsDashboard = ({
           value={formatCurrency(currentMonthData.averageEarningsPerDay)}
           subValue="per day"
           color="indigo"
-        />
-        <MetricCard
-          icon={FiBriefcase}
-          title="Projects Completed"
-          value={currentMonthData.totalProjects}
-          color="purple"
+          compact={false}
         />
         {/* Avg Hours Worked and Avg Sleep placed next to each other */}
         <MetricCard
@@ -157,6 +135,7 @@ const MetricsDashboard = ({
           value={`${currentMonthData.averageHoursWorked.toFixed(1)} hrs`}
           subValue="per day"
           color="yellow"
+          compact={false}
         />
         <MetricCard
           icon={FiMoon}
@@ -164,13 +143,7 @@ const MetricsDashboard = ({
           value={`${currentMonthData.averageSleep.toFixed(1)} hrs`}
           subValue="per day"
           color="blue"
-        />
-        <MetricCard
-          icon={FiActivity}
-          title="Work-Life Balance"
-          value={currentMonthData.balanceRating}
-          subValue={`Work:Sleep Ratio ${currentMonthData.workSleepRatio}:1`}
-          color="gray"
+          compact={false}
         />
       </div>
 
