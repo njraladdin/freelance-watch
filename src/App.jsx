@@ -13,6 +13,7 @@ import {
   query,
   where,
 } from 'firebase/firestore';
+import MetricsDashboard from './MetricsDashboard'; // Import the new component
 
 const App = () => {
   const userId = 'defaultUser'; // Replace with actual user ID in production
@@ -487,7 +488,19 @@ const App = () => {
             <div className="w-full h-48 bg-gray-200 animate-pulse rounded"></div>
           )}
         </section>
-
+     {/* Metrics Dashboard */}
+     <section className="bg-white p-6 rounded-3xl shadow-md mb-6">
+        {isCurrentMonthLoaded && isPastYearLoaded ? (
+          <MetricsDashboard
+            selectedGoal={selectedGoal}
+            currentMonthRecords={currentMonthRecords}
+            selectedDate={selectedDate}
+            pastYearRecords={pastYearRecords}
+          />
+        ) : (
+          <div className="w-full h-96 bg-gray-200 animate-pulse rounded"></div>
+        )}
+      </section>
         {/* Progress Section */}
         <section className="bg-white p-6 px-1 md:p-6 rounded-3xl shadow-md">
           {isCurrentMonthLoaded && isPastYearLoaded ? (
