@@ -12,18 +12,18 @@ export default defineConfig({
         name: 'Progress Tracker',
         short_name: 'ProgressTracker',
         description: 'Track your daily activities, earnings, and overall progress with our comprehensive dashboard.',
-        theme_color: '#10B981', // Tailwind's green-500
-        background_color: '#ffffff',
+        theme_color: '#3d5172', // Updated Theme Color
+        background_color: '#3d5172', // Updated Background Color for Splash Screen
         display: 'standalone',
         start_url: '/',
         icons: [
           {
-            src: '/images/android-chrome-192x192.png',
+            src: '/images/logo-192x192.png', // Using logo.png as icon
             sizes: '192x192',
             type: 'image/png',
           },
           {
-            src: '/images/android-chrome-512x512.png',
+            src: '/images/logo-512x512.png', // Using a larger version of logo.png
             sizes: '512x512',
             type: 'image/png',
           },
@@ -46,6 +46,7 @@ export default defineConfig({
       },
       workbox: {
         // Additional Workbox configurations if needed
+        // For example, runtimeCaching, etc.
       },
     }),
   ],
