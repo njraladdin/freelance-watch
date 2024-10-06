@@ -64,8 +64,8 @@ const ProgressChart = ({
     'Work & Sleep': ['Earnings', 'Goal', 'Hours Worked', 'Sleep Hours'],
     'Work & Workout': ['Earnings', 'Goal', 'Hours Worked', 'Workout'],
     'Work & Walk': ['Earnings', 'Goal', 'Hours Worked', 'Walk'],
-    'Work, Workout & Walk': ['Earnings', 'Goal', 'Hours Worked', 'Workout', 'Walk'],
-    'All': ['Earnings', 'Goal', 'Hours Worked', 'Sleep Hours', 'Workout', 'Walk'],
+    'Work & Motivation': ['Earnings', 'Goal', 'Hours Worked', 'Motivation Level'], // Added 'Work & Motivation'
+    'All': ['Earnings', 'Goal', 'Hours Worked', 'Sleep Hours', 'Workout', 'Walk', 'Motivation Level'], // Removed 'Work, Workout & Walk' and added 'Motivation Level'
   };
 
   const selectedDatasets = selectionMap[selectedCharts];
@@ -90,7 +90,7 @@ const ProgressChart = ({
       borderWidth: 2,
       borderDash: [5, 5],
       fill: false,
-      pointRadius: isMobile ? 0 : 3, // Hide dots on mobile
+      pointRadius: 0, // Hide dots
       yAxisID: 'y1',
       z: 10,
       datalabels: { display: false },
@@ -164,6 +164,24 @@ const ProgressChart = ({
         font: { size: isMobile ? 10 : 11 },
       },
     },
+    'Motivation Level': { // New dataset configuration
+      type: 'line',
+      label: 'Motivation Level',
+      borderWidth: 2,
+      fill: false,
+      tension: 0.1,
+      yAxisID: 'y6',
+      z: 15,
+      datalabels: {
+        display: true,
+        align: 'top',
+        formatter: (value) => (value !== 0 ? `${value}` : ''),
+        font: { weight: 'bold', size: isMobile ? 10 : 11 },
+      },
+      pointRadius: isMobile ? 0 : 3,
+      pointHoverRadius: isMobile ? 0 : 6,
+      borderDash: [0, 0],
+    },
   };
 
   // Colors mapping consistent with DayInput.jsx
@@ -192,6 +210,10 @@ const ProgressChart = ({
       borderColor: '#6366F1', // Indigo
       backgroundColor: 'rgba(99, 102, 241, 0.6)',
     },
+    'Motivation Level': { // Color mapping for Motivation Level
+      borderColor: '#FBBF24', // Amber
+      backgroundColor: 'rgba(251, 191, 36, 0.1)',
+    },
   };
 
   // Destructure the chartData prop
@@ -201,6 +223,7 @@ const ProgressChart = ({
     sleepHours,
     didWorkout,
     didWalk,
+    motivationLevel, // Added Motivation Level
     labels,
   } = chartData;
 
@@ -212,6 +235,7 @@ const ProgressChart = ({
     'Sleep Hours': sleepHours,
     'Workout': didWorkout.map((workedOut) => (workedOut ? 1 : 0)),
     'Walk': didWalk.map((walked) => (walked ? 1 : 0)),
+    'Motivation Level': motivationLevel, // Added Motivation Level data
   };
 
   // Build datasets based on selected charts
@@ -280,9 +304,23 @@ const ProgressChart = ({
       grid: { drawOnChartArea: false },
       z: 10,
     },
+    y6: { // New y-axis for Motivation Level
+      type: 'linear',
+      display: true,
+      position: 'right',
+      beginAtZero: true,
+      min: 0,
+      max: 10, // Changed from 5 to 10
+      ticks: {
+        callback: (value) => `${value}`,
+        font: { size: isMobile ? 10 : 12 },
+      },
+      grid: { drawOnChartArea: false },
+      z: 15,
+    },
   };
 
-  // Include all y-axes in scales, but only y1 is displayed
+  // Include all y-axes in scales, but only y1 and y6 are displayed
   const scales = {
     x: {
       grid: { display: false },
@@ -294,10 +332,11 @@ const ProgressChart = ({
       },
     },
     y1: scalesConfig.y1, // Always include y1
-    y2: scalesConfig.y2, // Include y2 to y5 even if hidden
+    y2: scalesConfig.y2, // Include y2 to y6 even if hidden
     y3: scalesConfig.y3,
     y4: scalesConfig.y4,
     y5: scalesConfig.y5,
+    y6: scalesConfig.y6, // Added y6
   };
 
   const data = {
@@ -339,7 +378,7 @@ const ProgressChart = ({
                 return `${label}: ${value === 1 ? 'Yes' : 'No'}`;
               case 'Hours Worked':
                 return `${label}: ${value}h`;
-              case 'Won Projects':
+              case 'Motivation Level':
                 return `${label}: ${value}`;
               case 'Earnings (USD)':
                 return `${label}: $${value}`;
@@ -389,7 +428,7 @@ const ProgressChart = ({
               <option value="Work & Sleep">Work & Sleep</option>
               <option value="Work & Workout">Work & Workout</option>
               <option value="Work & Walk">Work & Walk</option>
-              <option value="Work, Workout & Walk">Work, Workout & Walk</option>
+              <option value="Work & Motivation">Work & Motivation</option> {/* Added */}
               <option value="All">All</option>
             </select>
           </div>
@@ -401,7 +440,7 @@ const ProgressChart = ({
               'Work & Sleep',
               'Work & Workout',
               'Work & Walk',
-              'Work, Workout & Walk',
+              'Work & Motivation', // Added
               'All',
             ].map((tab) => (
               <button

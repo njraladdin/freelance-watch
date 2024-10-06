@@ -35,6 +35,7 @@ const App = () => {
     didWorkout: [],
     didWalk: [],
     projectsCount: [],
+    motivationLevel: [], // Added Motivation Level
     labels: [],
   });
   const [goalLineDaily, setGoalLineDaily] = useState([]);
@@ -81,6 +82,11 @@ const App = () => {
       bg: 'bg-orange-500',
       switch: 'orange',
     },
+    motivation: { // Added motivation colors for consistency
+      text: 'text-yellow-500',
+      bg: 'bg-yellow-500',
+      switch: 'yellow',
+    },
   };
 
   // Helper function to format date key
@@ -90,9 +96,7 @@ const App = () => {
 
   // Helper function to get number of days in a month for a given date
   const getDaysInMonth = (date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    return new Date(year, month + 1, 0).getDate();
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
   };
 
   // Helper function to calculate the start date (today - 365 days)
@@ -247,7 +251,7 @@ const App = () => {
     const month = selectedDate.getMonth();
 
     // Get the number of days in the selected month
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysInMonth = getDaysInMonth(selectedDate);
 
     const labels = Array.from({ length: daysInMonth }, (_, i) =>
       (i + 1).toString()
@@ -258,6 +262,7 @@ const App = () => {
     const didWorkout = [];
     const didWalk = [];
     const projectsCount = [];
+    const motivationLevel = []; // Initialize motivationLevel array
 
     let accumulatedEarnings = [];
     let totalEarnings = 0;
@@ -336,6 +341,16 @@ const App = () => {
       projectsCount.push(
         projects !== undefined && projects !== null ? projects : isPastDay ? 0 : null
       );
+
+      // Motivation Level
+      const motivation =
+        isPastDay &&
+        (record.motivationLevel === undefined || record.motivationLevel === null)
+          ? 0
+          : record.motivationLevel || null;
+      motivationLevel.push(
+        motivation !== undefined && motivation !== null ? motivation : isPastDay ? 0 : null
+      );
     }
 
     // Update goal lines
@@ -350,6 +365,7 @@ const App = () => {
       didWorkout,
       didWalk,
       projectsCount,
+      motivationLevel, // Update chartData with motivationLevel
       labels,
     });
   };
@@ -488,19 +504,21 @@ const App = () => {
             <div className="w-full h-48 bg-gray-200 animate-pulse rounded"></div>
           )}
         </section>
-     {/* Metrics Dashboard */}
-     <section className="bg-white p-6 rounded-3xl shadow-md mb-6">
-        {isCurrentMonthLoaded && isPastYearLoaded ? (
-          <MetricsDashboard
-            selectedGoal={selectedGoal}
-            currentMonthRecords={currentMonthRecords}
-            selectedDate={selectedDate}
-            pastYearRecords={pastYearRecords}
-          />
-        ) : (
-          <div className="w-full h-96 bg-gray-200 animate-pulse rounded"></div>
-        )}
-      </section>
+
+        {/* Metrics Dashboard */}
+        <section className="bg-white p-6 rounded-3xl shadow-md mb-6">
+          {isCurrentMonthLoaded && isPastYearLoaded ? (
+            <MetricsDashboard
+              selectedGoal={selectedGoal}
+              currentMonthRecords={currentMonthRecords}
+              selectedDate={selectedDate}
+              pastYearRecords={pastYearRecords}
+            />
+          ) : (
+            <div className="w-full h-96 bg-gray-200 animate-pulse rounded"></div>
+          )}
+        </section>
+
         {/* Progress Section */}
         <section className="bg-white p-6 px-1 md:p-6 rounded-3xl shadow-md">
           {isCurrentMonthLoaded && isPastYearLoaded ? (
