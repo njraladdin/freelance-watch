@@ -11,7 +11,8 @@ import {
   FiChevronLeft,
   FiChevronRight,
 } from 'react-icons/fi';
-import { FaWalking, FaFire } from 'react-icons/fa'; // Importing walking and fire icons from react-icons/fa
+import { FaFire } from 'react-icons/fa';
+import { AiOutlineFrown } from 'react-icons/ai'; // Import the new anxiety icon
 
 const DayInput = React.memo(({ onDataChange, record, date, onDateChange }) => {
   // Local state for selected work times (array of { start: hour, end: hour })
@@ -20,12 +21,12 @@ const DayInput = React.memo(({ onDataChange, record, date, onDateChange }) => {
   // Local state for selected sleep times (array of { start: hour, end: hour })
   const [selectedSleepTimes, setSelectedSleepTimes] = useState(record.selectedSleepTimes || []);
 
-  // Local state for workout and walk toggles
-  const [didWorkout, setDidWorkout] = useState(record.didWorkout || false);
-  const [didWalk, setDidWalk] = useState(record.didWalk || false);
+  // Local state for exercise toggle
+  const [didExercise, setDidExercise] = useState(record.didExercise || false);
 
-  // Local state for motivation level
+  // Local state for motivation and anxiety levels
   const [motivationLevel, setMotivationLevel] = useState(record.motivationLevel || 0);
+  const [anxietyLevel, setAnxietyLevel] = useState(record.anxietyLevel || 0);
 
   // Synchronize selected times with record props
   useEffect(() => {
@@ -37,16 +38,16 @@ const DayInput = React.memo(({ onDataChange, record, date, onDateChange }) => {
   }, [record.selectedSleepTimes]);
 
   useEffect(() => {
-    setDidWorkout(record.didWorkout || false);
-  }, [record.didWorkout]);
-
-  useEffect(() => {
-    setDidWalk(record.didWalk || false);
-  }, [record.didWalk]);
+    setDidExercise(record.didExercise || false);
+  }, [record.didExercise]);
 
   useEffect(() => {
     setMotivationLevel(record.motivationLevel || 0);
   }, [record.motivationLevel]);
+
+  useEffect(() => {
+    setAnxietyLevel(record.anxietyLevel || 0);
+  }, [record.anxietyLevel]);
 
   const hoursArray = Array.from({ length: 24 }, (_, i) => i);
 
@@ -67,15 +68,10 @@ const DayInput = React.memo(({ onDataChange, record, date, onDateChange }) => {
       bg: 'bg-blue-500',
       switch: 'blue',
     },
-    workout: {
+    exercise: {
       text: 'text-red-500',
       bg: 'bg-red-500',
       switch: 'red',
-    },
-    walk: {
-      text: 'text-indigo-500',
-      bg: 'bg-indigo-500',
-      switch: 'indigo',
     },
     sleep: {
       text: 'text-orange-500',
@@ -86,6 +82,12 @@ const DayInput = React.memo(({ onDataChange, record, date, onDateChange }) => {
       text: 'text-yellow-500',
       bg: 'bg-yellow-500',
       iconFilled: 'text-yellow-500',
+      iconEmpty: 'text-gray-300',
+    },
+    anxiety: { // Updated category for anxiety
+      text: 'text-blue-500',
+      bg: 'bg-blue-500',
+      iconFilled: 'text-blue-500',
       iconEmpty: 'text-gray-300',
     },
   };
@@ -163,6 +165,44 @@ const DayInput = React.memo(({ onDataChange, record, date, onDateChange }) => {
     );
   });
 
+  // **Reusable AnxietySelector Component**
+  const AnxietySelector = React.memo(({ level, onChange }) => {
+    const maxLevel = 5; // Similar to motivation level
+
+    const handleClick = (selectedLevel) => {
+      if (selectedLevel === level) {
+        onChange(0); // Reset to 0 if the same level is clicked
+      } else {
+        onChange(selectedLevel);
+      }
+    };
+
+    return (
+      <div className="flex flex-col bg-gray-50 p-5 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out">
+        <div className={`flex items-center space-x-3 mb-3 ${colors['anxiety'].text}`}>
+          <AiOutlineFrown className={`w-8 h-8 transition-colors duration-150 ease-in-out ${colors['anxiety'].text}`} /> {/* Updated icon */}
+          <p className="text-lg font-medium text-gray-700">Anxiety Level</p>
+        </div>
+        <div className="flex items-center justify-center space-x-2">
+          {Array.from({ length: maxLevel }, (_, i) => (
+            <button
+              key={i}
+              onClick={() => handleClick(i + 1)}
+              className="focus:outline-none"
+              aria-label={`Set anxiety level to ${i + 1}`}
+            >
+              <AiOutlineFrown
+                className={`w-8 h-8 ${
+                  i < level ? colors['anxiety'].iconFilled : colors['anxiety'].iconEmpty
+                } transition-colors duration-150 ease-in-out hover:text-blue-400`}
+              />
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  });
+
   const formatHour = (hour) => {
     return `${hour.toString().padStart(2, '0')}:00`;
   };
@@ -198,19 +238,12 @@ const DayInput = React.memo(({ onDataChange, record, date, onDateChange }) => {
     onDataChange(date, { earnings: newValue });
   };
 
-  // Handle Workout Toggle
-  const handleWorkoutToggle = () => {
-    const newValue = !didWorkout;
-    setDidWorkout(newValue);
-    onDataChange(date, { didWorkout: newValue });
-  };
-
-  // Handle Walk Toggle
-  const handleWalkToggle = () => {
-    const newValue = !didWalk;
-    setDidWalk(newValue);
-    onDataChange(date, { didWalk: newValue });
-  };
+  // Handle Exercise Toggle
+  const handleExerciseToggle = useCallback(() => {
+    const newValue = !didExercise;
+    setDidExercise(newValue);
+    onDataChange(date, { didExercise: newValue });
+  }, [didExercise, onDataChange, date]);
 
   // Handle Project Count Change
   const handleProjectVisualClick = (value) => {
@@ -364,6 +397,12 @@ const DayInput = React.memo(({ onDataChange, record, date, onDateChange }) => {
     onDataChange(date, { motivationLevel: level });
   }, [onDataChange, date]);
 
+  // **Handle Anxiety Level Change**
+  const handleAnxietyLevelChange = useCallback((level) => {
+    setAnxietyLevel(level);
+    onDataChange(date, { anxietyLevel: level });
+  }, [onDataChange, date]);
+
   // **Reset Function for Work Hours**
   const resetWorkSelections = () => {
     setSelectedWorkTimes([]);
@@ -441,22 +480,16 @@ const DayInput = React.memo(({ onDataChange, record, date, onDateChange }) => {
         {/* Motivation Level */}
         <MotivationSelector level={motivationLevel} onChange={handleMotivationLevelChange} />
 
-        {/* Workout */}
-        <ToggleSwitch
-          label="Did You Workout?"
-          Icon={FiActivity}
-          isChecked={didWorkout}
-          onToggle={handleWorkoutToggle}
-          color="workout"
-        />
+        {/* Anxiety Level */}
+        <AnxietySelector level={anxietyLevel} onChange={handleAnxietyLevelChange} />
 
-        {/* Walk */}
+        {/* Exercise */}
         <ToggleSwitch
-          label="Did You Take a Walk?"
-          Icon={FaWalking}
-          isChecked={didWalk}
-          onToggle={handleWalkToggle}
-          color="walk"
+          label="Did You Exercise?"
+          Icon={FiActivity} // You can choose a different icon if desired
+          isChecked={didExercise}
+          onToggle={handleExerciseToggle}
+          color="exercise"
         />
 
         {/* Work Hours */}

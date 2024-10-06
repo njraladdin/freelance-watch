@@ -40,10 +40,10 @@ const App = () => {
     earnings: [],
     hoursWorked: [],
     sleepHours: [],
-    didWorkout: [],
-    didWalk: [],
+    didExercise: [], // Replaced didWorkout and didWalk with didExercise
     projectsCount: [],
     motivationLevel: [], // Added Motivation Level
+    anxietyLevel: [], // Added Anxiety Level
     labels: [],
   });
   const [goalLineDaily, setGoalLineDaily] = useState([]);
@@ -80,15 +80,10 @@ const App = () => {
       bg: 'bg-blue-500',
       switch: 'blue',
     },
-    workout: {
+    exercise: { // Added exercise color
       text: 'text-red-500',
       bg: 'bg-red-500',
       switch: 'red',
-    },
-    walk: {
-      text: 'text-indigo-500',
-      bg: 'bg-indigo-500',
-      switch: 'indigo',
     },
     sleep: {
       text: 'text-orange-500',
@@ -99,6 +94,13 @@ const App = () => {
       text: 'text-yellow-500',
       bg: 'bg-yellow-500',
       switch: 'yellow',
+    },
+    anxiety: { // Added anxiety colors
+      text: 'text-blue-500',
+      bg: 'bg-blue-500',
+      iconFilled: 'text-blue-500',
+      iconEmpty: 'text-gray-300',
+      switch: 'blue', // If you plan to use a toggle for anxiety in future
     },
   };
 
@@ -295,10 +297,10 @@ const App = () => {
     const earnings = [];
     const hoursWorked = [];
     const sleepHours = [];
-    const didWorkout = [];
-    const didWalk = [];
+    const didExercise = []; // Replaced didWorkout and didWalk with didExercise
     const projectsCount = [];
     const motivationLevel = []; // Initialize motivationLevel array
+    const anxietyLevel = []; // Initialize anxietyLevel array
 
     let accumulatedEarnings = [];
     let totalEarnings = 0;
@@ -348,24 +350,14 @@ const App = () => {
         sleep !== undefined && sleep !== null ? sleep : isPastDay ? 0 : null
       );
 
-      // Did Workout
-      const workout =
+      // Did Exercise
+      const exercise =
         isPastDay &&
-        (record.didWorkout === undefined || record.didWorkout === null)
+        (record.didExercise === undefined || record.didExercise === null)
           ? false
-          : record.didWorkout || false;
-      didWorkout.push(
-        workout !== undefined && workout !== null ? workout : isPastDay ? false : false
-      );
-
-      // Did Walk
-      const walk =
-        isPastDay &&
-        (record.didWalk === undefined || record.didWalk === null)
-          ? false
-          : record.didWalk || false;
-      didWalk.push(
-        walk !== undefined && walk !== null ? walk : isPastDay ? false : false
+          : record.didExercise || false;
+      didExercise.push(
+        exercise !== undefined && exercise !== null ? exercise : isPastDay ? false : false
       );
 
       // Won Projects
@@ -387,6 +379,16 @@ const App = () => {
       motivationLevel.push(
         motivation !== undefined && motivation !== null ? motivation : isPastDay ? 0 : null
       );
+
+      // Anxiety Level
+      const anxiety =
+        isPastDay &&
+        (record.anxietyLevel === undefined || record.anxietyLevel === null)
+          ? 0
+          : record.anxietyLevel || null;
+      anxietyLevel.push(
+        anxiety !== undefined && anxiety !== null ? anxiety : isPastDay ? 0 : null
+      );
     }
 
     // Update goal lines
@@ -398,10 +400,10 @@ const App = () => {
       earnings: isAccumulatedView ? accumulatedEarnings : earnings,
       hoursWorked,
       sleepHours,
-      didWorkout,
-      didWalk,
+      didExercise, // Updated chartData with didExercise
       projectsCount,
       motivationLevel, // Update chartData with motivationLevel
+      anxietyLevel, // Update chartData with anxietyLevel
       labels,
     });
   };
@@ -447,6 +449,7 @@ const App = () => {
     setIsAccumulatedView(!isAccumulatedView);
   };
 
+  // **Handle Data Changes from DayInput**
   const handleDataChange = useCallback(async (date, data) => {
     const key = formatDateKey(date);
     const daysInMonth = getDaysInMonth(date);
