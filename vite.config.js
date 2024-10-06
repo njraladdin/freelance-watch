@@ -1,3 +1,4 @@
+// vite.config.js
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
@@ -8,25 +9,43 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Your App Name',
-        short_name: 'App',
-        description: 'Your app description',
-        theme_color: '#ffffff',
+        name: 'Progress Tracker',
+        short_name: 'ProgressTracker',
+        description: 'Track your daily activities, earnings, and overall progress with our comprehensive dashboard.',
+        theme_color: '#10B981', // Tailwind's green-500
+        background_color: '#ffffff',
+        display: 'standalone',
+        start_url: '/',
         icons: [
           {
-            src: '/icons/icon-192x192.png',
+            src: '/images/android-chrome-192x192.png',
             sizes: '192x192',
             type: 'image/png',
           },
           {
-            src: '/icons/icon-512x512.png',
+            src: '/images/android-chrome-512x512.png',
             sizes: '512x512',
+            type: 'image/png',
+          },
+          {
+            src: '/images/apple-touch-icon.png',
+            sizes: '180x180',
+            type: 'image/png',
+          },
+          {
+            src: '/images/favicon-32x32.png',
+            sizes: '32x32',
+            type: 'image/png',
+          },
+          {
+            src: '/images/favicon-16x16.png',
+            sizes: '16x16',
             type: 'image/png',
           },
         ],
       },
       workbox: {
-        // Other Workbox configurations
+        // Additional Workbox configurations if needed
       },
     }),
   ],
