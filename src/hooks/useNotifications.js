@@ -63,7 +63,7 @@ console.log('run')
       navigator.serviceWorker.ready.then((registration) => {
         registration.showNotification(title, {
           body: message,
-          icon: '/images/logo-512x512.png', // Adjust the path as needed
+          icon: '/images/logo.png', // Adjust the path as needed
           badge: '/images/favicon-32x32.png', // Adjust the path as needed
         });
       });

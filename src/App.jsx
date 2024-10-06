@@ -60,6 +60,9 @@ const App = () => {
   const [isCurrentMonthLoaded, setIsCurrentMonthLoaded] = useState(false);
   const [isPastYearLoaded, setIsPastYearLoaded] = useState(false);
 
+  // **Add isInitialLoad state to track initial data fetch**
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
   // Define unique colors for each category (consistent with DayInput.jsx)
   const colors = {
     earnings: {
@@ -99,14 +102,13 @@ const App = () => {
     },
   };
 
-  // Helper function to format date key
-// Helper function to format date key using local time
-const formatDateKey = (date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`; // 'YYYY-MM-DD'
-};
+  // Helper function to format date key using local time
+  const formatDateKey = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`; // 'YYYY-MM-DD'
+  };
 
   // Helper function to format month key
   const formatMonthKey = (date) => {
@@ -157,13 +159,14 @@ const formatDateKey = (date) => {
         setSelectedGoal(5000); // Fallback to default
       } finally {
         setIsSelectedGoalLoading(false);
+        setIsInitialLoad(false); // **Set initial load to false after fetching**
       }
     };
 
     fetchMonthlyGoal();
   }, [selectedDate, monthlyGoalsCollection]);
 
-  // **Save selectedGoal to Firestore whenever it changes**
+  // **Save selectedGoal to Firestore whenever it changes, but not on initial load**
   useEffect(() => {
     const saveMonthlyGoal = async () => {
       const monthKey = formatMonthKey(selectedDate);
@@ -189,11 +192,11 @@ const formatDateKey = (date) => {
       }
     };
 
-    // Only save if selectedGoal is defined and valid
-    if (selectedGoal) {
+    // **Only save if selectedGoal is defined, valid, and not during initial load**
+    if (selectedGoal && !isInitialLoad) {
       saveMonthlyGoal();
     }
-  }, [selectedGoal, selectedDate, monthlyGoalsCollection]);
+  }, [selectedGoal, selectedDate, monthlyGoalsCollection, isInitialLoad]); // **Added isInitialLoad to dependencies**
 
   // **Load data for the current month**
   useEffect(() => {
@@ -504,30 +507,21 @@ const formatDateKey = (date) => {
 
 
   // Request Notification Permission
-const requestNotificationPermission = async () => {
-  if ('Notification' in window) {
-    const permission = await Notification.requestPermission();
-    if (permission === 'granted') {
-      console.log('Notification permission granted.');
+  const requestNotificationPermission = async () => {
+    if ('Notification' in window) {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        console.log('Notification permission granted.');
+      } else {
+        console.log('Notification permission denied.');
+      }
     } else {
-      console.log('Notification permission denied.');
+      console.log('This browser does not support notifications.');
     }
-  } else {
-    console.log('This browser does not support notifications.');
-  }
-};
+  };
 
-useEffect(() => {
-  requestNotificationPermission();
-}, []);
-useEffect(() => {
-  navigator.serviceWorker.ready.then((registration) => {
-    registration.showNotification('Hello! User data has been loaded.', {
-      body: 'Check out your updated progress.',
-      icon: '/images/logo-512x512.png',
-      badge: '/images/favicon-32x32.png',
-    });
-  });
+  useEffect(() => {
+    requestNotificationPermission();
   }, []);
 
   return (
