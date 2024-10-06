@@ -98,9 +98,13 @@ const App = () => {
   };
 
   // Helper function to format date key
-  const formatDateKey = (date) => {
-    return date.toISOString().split('T')[0]; // 'YYYY-MM-DD'
-  };
+// Helper function to format date key using local time
+const formatDateKey = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`; // 'YYYY-MM-DD'
+};
 
   // Helper function to format month key
   const formatMonthKey = (date) => {

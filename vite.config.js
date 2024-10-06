@@ -18,7 +18,7 @@ export default defineConfig({
         start_url: '/',
         icons: [
           {
-            src: '/images/logo-192x192.png', // Using logo.png as icon
+            src: '/images/logo-512x512.png', // Using a larger version of logo.png
             sizes: '192x192',
             type: 'image/png',
           },
@@ -28,7 +28,7 @@ export default defineConfig({
             type: 'image/png',
           },
           {
-            src: '/images/apple-touch-icon.png',
+            src: '/images/logo-512x512.png', 
             sizes: '180x180',
             type: 'image/png',
           },
