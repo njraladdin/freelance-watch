@@ -1,5 +1,5 @@
 // src/DayInput.jsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   FiDollarSign,
   FiClock,
@@ -13,19 +13,19 @@ import {
 } from 'react-icons/fi';
 import { FaWalking, FaFire } from 'react-icons/fa'; // Importing walking and fire icons from react-icons/fa
 
-const DayInput = ({ onDataChange, record, date, onDateChange }) => {
+const DayInput = React.memo(({ onDataChange, record, date, onDateChange }) => {
   // Local state for selected work times (array of { start: hour, end: hour })
-  const [selectedWorkTimes, setSelectedWorkTimes] = React.useState(record.selectedWorkTimes || []);
+  const [selectedWorkTimes, setSelectedWorkTimes] = useState(record.selectedWorkTimes || []);
 
   // Local state for selected sleep times (array of { start: hour, end: hour })
-  const [selectedSleepTimes, setSelectedSleepTimes] = React.useState(record.selectedSleepTimes || []);
+  const [selectedSleepTimes, setSelectedSleepTimes] = useState(record.selectedSleepTimes || []);
 
   // Local state for workout and walk toggles
-  const [didWorkout, setDidWorkout] = React.useState(record.didWorkout || false);
-  const [didWalk, setDidWalk] = React.useState(record.didWalk || false);
+  const [didWorkout, setDidWorkout] = useState(record.didWorkout || false);
+  const [didWalk, setDidWalk] = useState(record.didWalk || false);
 
   // Local state for motivation level
-  const [motivationLevel, setMotivationLevel] = React.useState(record.motivationLevel || 0);
+  const [motivationLevel, setMotivationLevel] = useState(record.motivationLevel || 0);
 
   // Synchronize selected times with record props
   useEffect(() => {
@@ -91,7 +91,7 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
   };
 
   // **Reusable ToggleSwitch Component**
-  const ToggleSwitch = ({ label, Icon, isChecked, onToggle, color }) => {
+  const ToggleSwitch = React.memo(({ label, Icon, isChecked, onToggle, color }) => {
     const colorClasses = colors[color] || colors['earnings']; // Default to 'earnings' if color not found
 
     return (
@@ -123,10 +123,10 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
         </div>
       </div>
     );
-  };
+  });
 
   // **Reusable MotivationSelector Component**
-  const MotivationSelector = ({ level, onChange }) => {
+  const MotivationSelector = React.memo(({ level, onChange }) => {
     const maxLevel = 5; // 5 levels instead of 10
 
     const handleClick = (selectedLevel) => {
@@ -161,7 +161,7 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
         </div>
       </div>
     );
-  };
+  });
 
   const formatHour = (hour) => {
     return `${hour.toString().padStart(2, '0')}:00`;
@@ -219,9 +219,9 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
   };
 
   // **Reusable TimeRangeSelector Component**
-  const TimeRangeSelector = ({ selectedTimes, onTimeChange, maxHours, label }) => {
+  const TimeRangeSelector = React.memo(({ selectedTimes, onTimeChange, maxHours, label }) => {
     // selectedTimes is an array of { start: hour, end: hour }
-    const [localSelectedTimes, setLocalSelectedTimes] = React.useState(selectedTimes || []);
+    const [localSelectedTimes, setLocalSelectedTimes] = useState(selectedTimes || []);
 
     useEffect(() => {
       setLocalSelectedTimes(selectedTimes || []);
@@ -323,10 +323,10 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
         </div>
       </div>
     );
-  };
+  });
 
   // **Handle Work Time Changes from TimeRangeSelector**
-  const handleWorkTimeChange = (newTimes) => {
+  const handleWorkTimeChange = useCallback((newTimes) => {
     let total = 0;
     newTimes.forEach((range) => {
       if (range.start !== null && range.end !== null) {
@@ -339,10 +339,10 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
     });
 
     onDataChange(date, { hoursWorked: total, selectedWorkTimes: newTimes });
-  };
+  }, [onDataChange, date]);
 
   // **Handle Sleep Time Changes from TimeRangeSelector**
-  const handleSleepTimeChange = (newTimes) => {
+  const handleSleepTimeChange = useCallback((newTimes) => {
     let total = 0;
     newTimes.forEach((range) => {
       if (range.start !== null && range.end !== null) {
@@ -356,13 +356,13 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
     // Clamp total sleep hours between 0 and 12
     total = Math.min(Math.max(total, 0), 12);
     onDataChange(date, { sleepHours: total, selectedSleepTimes: newTimes });
-  };
+  }, [onDataChange, date]);
 
   // **Handle Motivation Level Change**
-  const handleMotivationLevelChange = (level) => {
+  const handleMotivationLevelChange = useCallback((level) => {
     setMotivationLevel(level);
     onDataChange(date, { motivationLevel: level });
-  };
+  }, [onDataChange, date]);
 
   // **Reset Function for Work Hours**
   const resetWorkSelections = () => {
@@ -415,8 +415,8 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
 
       {/* Main Content */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {/* Sleep Time */}
-      <div className="flex flex-col bg-gray-50 p-5 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out md:col-span-2 lg:col-span-3">
+        {/* Sleep Time */}
+        <div className="flex flex-col bg-gray-50 p-5 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out md:col-span-2 lg:col-span-3">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center space-x-3">
               <FiMoon className="text-orange-500 w-6 h-6 transition-colors duration-150 ease-in-out" />
@@ -437,10 +437,12 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
             label="Sleep Time"
           />
         </div>
+
         {/* Motivation Level */}
         <MotivationSelector level={motivationLevel} onChange={handleMotivationLevelChange} />
-  {/* Workout */}
-  <ToggleSwitch
+
+        {/* Workout */}
+        <ToggleSwitch
           label="Did You Workout?"
           Icon={FiActivity}
           isChecked={didWorkout}
@@ -481,10 +483,8 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
           />
         </div>
 
-      
-  
-              {/* Projects Won */}
-              <div className="flex flex-col bg-gray-50 p-5 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out">
+        {/* Projects Won */}
+        <div className="flex flex-col bg-gray-50 p-5 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out">
           <div className="flex items-center space-x-3 mb-3">
             <FiBriefcase className="text-purple-500 w-6 h-6 transition-colors duration-150 ease-in-out" />
             <p className="text-lg font-medium text-gray-700">Projects Won</p>
@@ -513,8 +513,8 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
           </div>
         </div>
 
-                {/* Money Earned */}
-                <div className="flex flex-col bg-gray-50 p-5 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out">
+        {/* Money Earned */}
+        <div className="flex flex-col bg-gray-50 p-5 rounded-lg shadow-inner transition-shadow duration-150 ease-in-out">
           <div className="flex items-center space-x-3 mb-3">
             <FiDollarSign className="text-green-500 w-6 h-6 transition-colors duration-150 ease-in-out" />
             <p className="text-lg font-medium text-gray-700">Money Earned</p>
@@ -543,11 +543,9 @@ const DayInput = ({ onDataChange, record, date, onDateChange }) => {
             </button>
           </div>
         </div>
-
-  
       </div>
     </div>
   );
-};
+});
 
 export default DayInput;

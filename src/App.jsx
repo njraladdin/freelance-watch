@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import DayInput from './DayInput';
 import ProgressChart from './ProgressChart';
 import ActivityTracker from './ActivityTracker';
@@ -24,6 +24,12 @@ const App = () => {
     [userId]
   );
 
+  // **Reference to monthlyGoals collection**
+  const monthlyGoalsCollection = useMemo(
+    () => collection(db, 'users', userId, 'monthlyGoals'),
+    [userId]
+  );
+
   const userDocRef = useMemo(() => doc(db, 'users', userId), [userId]);
 
   const [currentMonthRecords, setCurrentMonthRecords] = useState({});
@@ -41,6 +47,8 @@ const App = () => {
   const [goalLineDaily, setGoalLineDaily] = useState([]);
   const [goalLineAccumulated, setGoalLineAccumulated] = useState([]);
   const [isAccumulatedView, setIsAccumulatedView] = useState(true);
+
+  // **Selected goal now represents the current month's goal**
   const [selectedGoal, setSelectedGoal] = useState(5000);
   const [activityData, setActivityData] = useState([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -94,6 +102,13 @@ const App = () => {
     return date.toISOString().split('T')[0]; // 'YYYY-MM-DD'
   };
 
+  // Helper function to format month key
+  const formatMonthKey = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // 'MM'
+    return `${year}-${month}`; // 'YYYY-MM'
+  };
+
   // Helper function to get number of days in a month for a given date
   const getDaysInMonth = (date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
@@ -108,59 +123,71 @@ const App = () => {
     return pastYear;
   };
 
-  // **Fetch selectedGoal from Firestore on mount**
+  // **Fetch selectedGoal for the current month from Firestore on mount and when selectedDate changes**
   useEffect(() => {
-    const fetchSelectedGoal = async () => {
+    const fetchMonthlyGoal = async () => {
+      setIsSelectedGoalLoading(true);
+      const monthKey = formatMonthKey(selectedDate);
+      const monthlyGoalDocRef = doc(monthlyGoalsCollection, monthKey);
+
       try {
-        const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists()) {
-          const data = userDoc.data();
+        const monthlyGoalDoc = await getDoc(monthlyGoalDocRef);
+        if (monthlyGoalDoc.exists()) {
+          const data = monthlyGoalDoc.data();
           if (data.selectedGoal) {
             setSelectedGoal(data.selectedGoal);
+          } else {
+            // If selectedGoal doesn't exist, set to default
+            setSelectedGoal(5000);
           }
         } else {
-          // If user document doesn't exist, create it with default selectedGoal
-          await setDoc(userDocRef, { selectedGoal }, { merge: true });
-          console.log('User document created with selectedGoal:', selectedGoal);
+          // If monthly goal document doesn't exist, create it with default selectedGoal
+          await setDoc(monthlyGoalDocRef, { selectedGoal: 5000 });
+          console.log(`Monthly goal document created for ${monthKey} with selectedGoal: 5000`);
+          setSelectedGoal(5000);
         }
       } catch (error) {
-        console.error('Failed to fetch selectedGoal:', error);
+        console.error(`Failed to fetch selectedGoal for ${monthKey}:`, error);
+        setSelectedGoal(5000); // Fallback to default
       } finally {
         setIsSelectedGoalLoading(false);
       }
     };
 
-    fetchSelectedGoal();
-  }, [userDocRef]);
+    fetchMonthlyGoal();
+  }, [selectedDate, monthlyGoalsCollection]);
 
   // **Save selectedGoal to Firestore whenever it changes**
   useEffect(() => {
-    const saveSelectedGoal = async () => {
+    const saveMonthlyGoal = async () => {
+      const monthKey = formatMonthKey(selectedDate);
+      const monthlyGoalDocRef = doc(monthlyGoalsCollection, monthKey);
+
       try {
-        const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists()) {
-          const data = userDoc.data();
+        const monthlyGoalDoc = await getDoc(monthlyGoalDocRef);
+        if (monthlyGoalDoc.exists()) {
+          const data = monthlyGoalDoc.data();
           if (data.selectedGoal !== selectedGoal) {
-            await setDoc(userDocRef, { selectedGoal }, { merge: true });
-            console.log('Selected goal saved:', selectedGoal);
+            await setDoc(monthlyGoalDocRef, { selectedGoal }, { merge: true });
+            console.log(`Selected goal for ${monthKey} saved:`, selectedGoal);
           } else {
-            console.log('Selected goal is already up-to-date.');
+            console.log(`Selected goal for ${monthKey} is already up-to-date.`);
           }
         } else {
-          // If user document doesn't exist, create it with selectedGoal
-          await setDoc(userDocRef, { selectedGoal }, { merge: true });
-          console.log('User document created with selectedGoal:', selectedGoal);
+          // If monthly goal document doesn't exist, create it with selectedGoal
+          await setDoc(monthlyGoalDocRef, { selectedGoal }, { merge: true });
+          console.log(`Monthly goal document created for ${monthKey} with selectedGoal:`, selectedGoal);
         }
       } catch (error) {
-        console.error('Failed to save selectedGoal:', error);
+        console.error(`Failed to save selectedGoal for ${monthKey}:`, error);
       }
     };
 
     // Only save if selectedGoal is defined and valid
     if (selectedGoal) {
-      saveSelectedGoal();
+      saveMonthlyGoal();
     }
-  }, [selectedGoal, userDocRef]);
+  }, [selectedGoal, selectedDate, monthlyGoalsCollection]);
 
   // **Load data for the current month**
   useEffect(() => {
@@ -279,7 +306,7 @@ const App = () => {
 
       const record = currentMonthRecords[dateKey] || {};
 
-      // For each data point, set to 0 if missing and it's a past day
+      // **Set default values only for past days**
       const earning =
         isPastDay && (record.earnings === undefined || record.earnings === null)
           ? 0
@@ -411,7 +438,7 @@ const App = () => {
     setIsAccumulatedView(!isAccumulatedView);
   };
 
-  const handleDataChange = async (date, data) => {
+  const handleDataChange = useCallback(async (date, data) => {
     const key = formatDateKey(date);
     const daysInMonth = getDaysInMonth(date);
     const dailyGoal = selectedGoal / daysInMonth;
@@ -439,23 +466,30 @@ const App = () => {
       }));
     }
 
-    // Save the updated record to Firestore
-    try {
-      const recordDocRef = doc(recordsCollection, key);
-      const recordData = {
-        ...data,
-        date: key,
-        year: date.getFullYear(),
-        month: date.getMonth() + 1,
-        dailyGoal,
-      };
-      await setDoc(recordDocRef, recordData, { merge: true });
-      console.log(`Saved record for ${key}:`, recordData);
-    } catch (error) {
-      console.error(`Failed to save record for ${key}:`, error);
-      // Optionally, revert the optimistic update here
+    // Debounce Firebase writes to prevent rapid successive writes
+    if (handleDataChange.debounceTimeout) {
+      clearTimeout(handleDataChange.debounceTimeout);
     }
-  };
+
+    handleDataChange.debounceTimeout = setTimeout(async () => {
+      // Save the updated record to Firestore
+      try {
+        const recordDocRef = doc(recordsCollection, key);
+        const recordData = {
+          ...data,
+          date: key,
+          year: date.getFullYear(),
+          month: date.getMonth() + 1,
+          dailyGoal,
+        };
+        await setDoc(recordDocRef, recordData, { merge: true });
+        console.log(`Saved record for ${key}:`, recordData);
+      } catch (error) {
+        console.error(`Failed to save record for ${key}:`, error);
+        // Optionally, revert the optimistic update here
+      }
+    }, 500); // 500ms debounce delay
+  }, [recordsCollection, selectedGoal]);
 
   const getRecordForSelectedDate = () => {
     const dateKey = formatDateKey(selectedDate);
