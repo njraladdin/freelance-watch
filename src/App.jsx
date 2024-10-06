@@ -14,9 +14,11 @@ import {
   where,
 } from 'firebase/firestore';
 import MetricsDashboard from './MetricsDashboard'; // Import the new component
+import useNotifications from './hooks/useNotifications'; // Import the custom hook
 
 const App = () => {
   const userId = 'defaultUser'; // Replace with actual user ID in production
+  useNotifications(userId);
 
   // Memoize Firestore references to prevent useEffect from triggering infinitely
   const recordsCollection = useMemo(
@@ -499,6 +501,34 @@ const formatDateKey = (date) => {
     const dateKey = formatDateKey(selectedDate);
     return currentMonthRecords[dateKey] || {};
   };
+
+
+  // Request Notification Permission
+const requestNotificationPermission = async () => {
+  if ('Notification' in window) {
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      console.log('Notification permission granted.');
+    } else {
+      console.log('Notification permission denied.');
+    }
+  } else {
+    console.log('This browser does not support notifications.');
+  }
+};
+
+useEffect(() => {
+  requestNotificationPermission();
+}, []);
+useEffect(() => {
+  navigator.serviceWorker.ready.then((registration) => {
+    registration.showNotification('Hello! User data has been loaded.', {
+      body: 'Check out your updated progress.',
+      icon: '/images/logo-512x512.png',
+      badge: '/images/favicon-32x32.png',
+    });
+  });
+  }, []);
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 mb-56">
