@@ -1,5 +1,7 @@
 // src/DayInput.jsx
 import React, { useEffect, useState, useCallback } from 'react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import {
   FiDollarSign,
   FiClock,
@@ -207,45 +209,62 @@ const DayInput = React.memo(({ onDataChange, record, date, onDateChange }) => {
     return `${hour.toString().padStart(2, '0')}:00`;
   };
 
-  // Handle Date Change via Date Picker
-  const handleDateChange = (e) => {
-    const newDate = new Date(e.target.value);
+  // **Handle Date Change via React DatePicker**
+  const handleDateChange = (newDate) => {
     onDateChange(newDate);
   };
 
-  // Handle Previous Day Navigation
+  // **Handle Previous Day Navigation**
   const handlePrevDay = () => {
     const prev = new Date(date);
     prev.setDate(date.getDate() - 1);
     onDateChange(prev);
   };
 
-  // Handle Next Day Navigation
+  // **Handle Next Day Navigation**
   const handleNextDay = () => {
     const next = new Date(date);
     next.setDate(date.getDate() + 1);
     onDateChange(next);
   };
 
-  // Determine if the selected date is today
+  // **Helper Function to Format Date**
+  const formatDate = (date) => {
+    const options = { day: '2-digit', month: 'long', year: 'numeric' };
+    return date.toLocaleDateString(undefined, options);
+  };
+
+  // **Determine if the selected date is today or tomorrow**
   const today = new Date();
   today.setHours(0, 0, 0, 0); // Normalize today's date
+
   const isToday = date.toDateString() === today.toDateString();
 
-  // Handle Earnings Change
+  const isTomorrow = (() => {
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    return date.toDateString() === tomorrow.toDateString();
+  })();
+
+  // **Determine Min and Max Dates for DatePicker**
+  const minDate = today;
+  const maxDate = new Date(today);
+  maxDate.setDate(today.getDate() + 1); // Tomorrow
+
+  // **Handle Earnings Change**
   const handleAmountChange = (value) => {
     const newValue = Math.max(value, 0);
     onDataChange(date, { earnings: newValue });
   };
 
-  // Handle Exercise Toggle
+  // **Handle Exercise Toggle**
   const handleExerciseToggle = useCallback(() => {
     const newValue = !didExercise;
     setDidExercise(newValue);
     onDataChange(date, { didExercise: newValue });
   }, [didExercise, onDataChange, date]);
 
-  // Handle Project Count Change
+  // **Handle Project Count Change**
   const handleProjectVisualClick = (value) => {
     const newValue = record.projectsCount === value ? 0 : value;
     onDataChange(date, { projectsCount: newValue });
@@ -418,38 +437,50 @@ const DayInput = React.memo(({ onDataChange, record, date, onDateChange }) => {
   return (
     <div className="space-y-8">
       {/* Date Picker with Navigation Arrows */}
-      <div className="flex justify-center items-center space-x-4">
-        {/* Previous Day Button */}
-        <button
-          onClick={handlePrevDay}
-          className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors duration-150 ease-in-out"
-          aria-label="Previous Day"
-        >
-          <FiChevronLeft className="w-5 h-5 text-gray-600 transition-colors duration-150 ease-in-out hover:scale-110" />
-        </button>
+      <div className="flex flex-col items-center space-y-2">
+        <div className="flex justify-center items-center space-x-4">
+          {/* Previous Day Button */}
+          <button
+            onClick={handlePrevDay}
+            className={`p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors duration-150 ease-in-out ${
+              date <= minDate ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+            aria-label="Previous Day"
+            disabled={date <= minDate}
+          >
+            <FiChevronLeft className="w-5 h-5 text-gray-600 transition-colors duration-150 ease-in-out hover:scale-110" />
+          </button>
 
-        {/* Date Input */}
-        <input
-          type="date"
-          value={date.toISOString().split('T')[0]} // Use input type="date" for better UX
-          onChange={handleDateChange}
-          className="w-48 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-400 text-gray-700 transition-colors duration-150 ease-in-out"
-          aria-label="Select Date"
-        />
+          {/* React DatePicker */}
+          <DatePicker
+            selected={date}
+            onChange={handleDateChange}
+            dateFormat="dd/MMMM/yyyy"
+            minDate={minDate}
+            maxDate={maxDate}
+            className="w-48 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-400 text-gray-700 transition-colors duration-150 ease-in-out"
+            aria-label="Select Date"
+          />
 
-        {/* Next Day Button */}
-        <button
-          onClick={handleNextDay}
-          className={`p-2 rounded-full transition-colors duration-150 ease-in-out ${
-            isToday
-              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
-          }`}
-          aria-label="Next Day"
-          disabled={isToday}
-        >
-          <FiChevronRight className="w-5 h-5 transition-colors duration-150 ease-in-out hover:scale-110" />
-        </button>
+          {/* Next Day Button */}
+          <button
+            onClick={handleNextDay}
+            className={`p-2 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors duration-150 ease-in-out ${
+              date >= maxDate ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+            aria-label="Next Day"
+            disabled={date >= maxDate}
+          >
+            <FiChevronRight className="w-5 h-5 transition-colors duration-150 ease-in-out hover:scale-110" />
+          </button>
+        </div>
+
+        {/* Formatted Date and Label */}
+        <div className="text-center">
+          {/* <p className="text-lg font-semibold text-gray-800">{formatDate(date)}</p> */}
+          {isToday && <span className="text-green-500 font-medium">Today</span>}
+          {isTomorrow && <span className="text-blue-500 font-medium">Tomorrow</span>}
+        </div>
       </div>
 
       {/* Main Content */}
