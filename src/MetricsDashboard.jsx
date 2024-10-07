@@ -1,3 +1,4 @@
+// src/MetricsDashboard.jsx
 import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { 
@@ -63,8 +64,12 @@ const MetricsDashboard = ({
     const averageEarningsPerHour =
       averageHoursWorked > 0 ? totalEarnings / totalHoursWorked : 0;
     const averageEarningsPerDay = daysPassed > 0 ? totalEarnings / daysPassed : 0;
+
+    // **Updated averageSleep calculation**
     const averageSleep = calculateAverage(
-      Object.values(currentMonthRecords).map((rec) => rec.sleepHours)
+      Object.values(currentMonthRecords)
+        .map((rec) => rec.sleepHours)
+        .filter((sleep) => sleep > 0) // Only include positive sleep hours
     );
 
     // Pacing Metric

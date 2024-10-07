@@ -442,11 +442,8 @@ const DayInput = React.memo(({ onDataChange, record, date, onDateChange }) => {
           {/* Previous Day Button */}
           <button
             onClick={handlePrevDay}
-            className={`p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors duration-150 ease-in-out ${
-              date <= minDate ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
+            className={`p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors duration-150 ease-in-out`}
             aria-label="Previous Day"
-            disabled={date <= minDate}
           >
             <FiChevronLeft className="w-5 h-5 text-gray-600 transition-colors duration-150 ease-in-out hover:scale-110" />
           </button>
