@@ -276,10 +276,11 @@ const MetricsDashboard = ({
   return (
     <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       {/* Today Overview Section */}
-      <div className="bg-white py-6 px-0 rounded-lg md:p-6">
-        <h2 className="text-2xl font-semibold mb-6 text-gray-700">
-          Today Overview
+      <h2 className="text-xl sm:text-2xl font-semibold mb-4 border-b pb-2 text-gray-600">
+          Today 
         </h2>
+        <div className="bg-white pb-6 px-0 rounded-lg md:px-6">
+
         {/* Updated Grid Layout for Today Overview */}
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-6 justify-items-center lg:justify-items-start">
           {/* Time from wakeup to work */}
@@ -327,14 +328,14 @@ const MetricsDashboard = ({
       </div>
 
       {/* Month Overview Section */}
-      <div className="bg-white p-6 rounded-lg shadow-md">
-        <h2 className="text-2xl font-semibold mb-6 text-gray-700">
+      <h2 className="text-xl sm:text-2xl font-semibold mb-4 border-b pb-2 text-gray-600">
           Overview -{' '}
           {new Date().toLocaleString('default', {
             month: 'short',
             year: 'numeric',
           })}
         </h2>
+      <div className="bg-white p-6 rounded-lg shadow-md">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
           <div className="mb-4 sm:mb-0">
             <p className="text-3xl font-bold text-gray-800">{formatCurrency(currentMonthData.totalEarnings)}</p>
@@ -354,7 +355,7 @@ const MetricsDashboard = ({
       </div>
 
       {/* Metric Cards Section with Grid and Centered Items */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 justify-items-center">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 justify-items-center md:justify-items-start">
         <MetricCard
           icon={FiClock}
           title="Avg Earnings per Hour"
