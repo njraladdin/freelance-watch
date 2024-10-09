@@ -18,7 +18,7 @@ import useNotifications from './hooks/useNotifications'; // Import the custom ho
 
 const App = () => {
   const userId = 'defaultUser'; // Replace with actual user ID in production
-  useNotifications(userId);
+  //useNotifications(userId);
 
   // Memoize Firestore references to prevent useEffect from triggering infinitely
   const recordsCollection = useMemo(
