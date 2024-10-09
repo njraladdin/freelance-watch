@@ -19,7 +19,7 @@ import { FaFire } from 'react-icons/fa';
 import { AiOutlineFrown } from 'react-icons/ai';
 
 // Reusable TimePickerModal Component
-const TimePickerModal = React.memo(({ isOpen, onClose, onSelect, title, color }) => {
+const TimePickerModal = React.memo(({ isOpen, onClose, onSelect, onReset, title, color }) => {
   if (!isOpen) return null;
 
   const hoursArray = Array.from({ length: 24 }, (_, i) => i);
@@ -60,6 +60,8 @@ const TimePickerModal = React.memo(({ isOpen, onClose, onSelect, title, color })
             &times;
           </button>
         </div>
+
+        {/* Hour Selection Grid */}
         <div className="p-4 grid grid-cols-3 gap-3">
           {hoursArray.map((hour) => (
             <button
@@ -72,10 +74,22 @@ const TimePickerModal = React.memo(({ isOpen, onClose, onSelect, title, color })
             </button>
           ))}
         </div>
+
+        {/* Reset Button */}
+        <div className="flex justify-center p-4">
+          <button
+            onClick={onReset}
+            className="w-full py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors duration-150 ease-in-out"
+            aria-label="Reset Selection"
+          >
+            Reset
+          </button>
+        </div>
       </div>
     </div>
   );
 });
+
 
 // Reusable ToggleSwitch Component
 const ToggleSwitch = React.memo(({ label, Icon, isChecked, onToggle, color }) => {
@@ -301,7 +315,10 @@ const TimeRangeSelector = React.memo(({
   };
 
   // Removed break-related state and handlers
-
+ // Handle Reset (Clear Selected Times)
+ const handleReset = () => {
+  onTimeChange([{ start: null, end: null }]);
+};
   return (
     <div className="flex flex-col space-y-4">
       {/* Start and End Time Buttons Side by Side */}
@@ -336,6 +353,7 @@ const TimeRangeSelector = React.memo(({
         isOpen={isStartModalOpen}
         onClose={() => setIsStartModalOpen(false)}
         onSelect={handleStartSelect}
+        onReset={handleReset}  // Pass the reset handler
         title="Select Start Time"
         color="start"
       />
@@ -343,10 +361,10 @@ const TimeRangeSelector = React.memo(({
         isOpen={isEndModalOpen}
         onClose={() => setIsEndModalOpen(false)}
         onSelect={handleEndSelect}
+        onReset={handleReset}  // Pass the reset handler
         title="Select End Time"
         color="end"
       />
-
       {/* Removed Break Button */}
       {/* {allowBreak && (
         <div className="flex items-center justify-center space-x-2">
