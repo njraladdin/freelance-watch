@@ -11,8 +11,8 @@ import {
   Tooltip,
   Legend,
   Filler,
-  LineController,    // Import LineController
-  BarController,     // Import BarController
+  LineController,
+  BarController,
 } from 'chart.js';
 import { Chart } from 'react-chartjs-2';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
@@ -24,8 +24,8 @@ ChartJS.register(
   PointElement,
   LineElement,
   BarElement,
-  LineController,    // Register LineController
-  BarController,     // Register BarController
+  LineController,
+  BarController,
   Title,
   Tooltip,
   Legend,
@@ -64,8 +64,17 @@ const ProgressChart = ({
     'Work & Sleep': ['Earnings', 'Goal', 'Hours Worked', 'Sleep Hours'],
     'Work & Exercise': ['Earnings', 'Goal', 'Hours Worked', 'Exercise'],
     'Work & Motivation': ['Earnings', 'Goal', 'Hours Worked', 'Motivation Level'],
-    'Work, Exercise & Anxiety': ['Earnings', 'Goal', 'Hours Worked', 'Exercise', 'Anxiety Level'], // New selection
-    'All': ['Earnings', 'Goal', 'Hours Worked', 'Sleep Hours', 'Exercise', 'Motivation Level', 'Anxiety Level', 'Projects Won'], // Added 'Projects Won'
+    'Work, Exercise & Anxiety': ['Earnings', 'Goal', 'Hours Worked', 'Exercise', 'Anxiety Level'],
+    'All': [
+      'Earnings',
+      'Goal',
+      'Hours Worked',
+      'Sleep Hours',
+      'Exercise',
+      'Motivation Level',
+      'Anxiety Level',
+      'Projects Won',
+    ],
   };
 
   const selectedDatasets = selectionMap[selectedCharts] || [];
@@ -130,7 +139,7 @@ const ProgressChart = ({
       pointRadius: isMobile ? 0 : 3, // Hide dots on mobile
       pointHoverRadius: isMobile ? 0 : 6,
     },
-    'Exercise': { // New dataset configuration
+    'Exercise': {
       type: 'bar',
       label: 'Exercise',
       borderWidth: 1,
@@ -148,7 +157,7 @@ const ProgressChart = ({
       },
       backgroundColor: 'rgba(239, 68, 68, 0.6)', // Red
     },
-    'Anxiety Level': { // New dataset configuration
+    'Anxiety Level': {
       type: 'line',
       label: 'Anxiety Level',
       borderWidth: 2,
@@ -166,7 +175,7 @@ const ProgressChart = ({
       pointHoverRadius: isMobile ? 0 : 6,
       borderColor: '#8B4513', // Brown
     },
-    'Motivation Level': { // Existing dataset configuration
+    'Motivation Level': {
       type: 'line',
       label: 'Motivation Level',
       borderWidth: 2,
@@ -184,13 +193,13 @@ const ProgressChart = ({
       pointHoverRadius: isMobile ? 0 : 6,
       borderColor: '#FBBF24', // Amber
     },
-    'Projects Won': { // New dataset configuration
+    'Projects Won': {
       type: 'line', // You can change this to 'bar' if preferred
       label: 'Projects Won',
       borderWidth: 2,
       fill: false,
       tension: 0.1,
-      yAxisID: 'y7', // New y-axis for Projects Won
+      yAxisID: 'y7',
       z: 12,
       datalabels: {
         display: true,
@@ -222,19 +231,19 @@ const ProgressChart = ({
       borderColor: '#F97316', // Orange
       backgroundColor: 'rgba(249, 115, 22, 0.1)',
     },
-    'Exercise': { // New color mapping
+    'Exercise': {
       borderColor: '#EF4444', // Red
       backgroundColor: 'rgba(239, 68, 68, 0.6)',
     },
-    'Anxiety Level': { // New color mapping
+    'Anxiety Level': {
       borderColor: '#8B4513', // Brown
       backgroundColor: 'rgba(139, 69, 19, 0.1)',
     },
-    'Motivation Level': { // Existing color mapping
+    'Motivation Level': {
       borderColor: '#FBBF24', // Amber
       backgroundColor: 'rgba(251, 191, 36, 0.1)',
     },
-    'Projects Won': { // New color mapping
+    'Projects Won': {
       borderColor: '#A855F7', // Purple
       backgroundColor: 'rgba(168, 85, 247, 0.1)',
     },
@@ -245,23 +254,103 @@ const ProgressChart = ({
     earnings,
     hoursWorked,
     sleepHours,
-    didExercise,      // Replaced didWorkout and didWalk with didExercise
-    motivationLevel, // Added Motivation Level
-    anxietyLevel,    // Added Anxiety Level
-    projectsCount,    // Added Projects Count
+    didExercise,
+    motivationLevel,
+    anxietyLevel,
+    projectsCount,
     labels,
   } = chartData;
 
+  // Function to get today's day of the month
+  const getTodayDay = () => {
+    const today = new Date();
+    return today.getDate();
+  };
+
+  // Function to filter data based on isMobile
+  const getFilteredData = () => {
+    if (!isMobile) {
+      // If not mobile, return all data
+      return {
+        labels,
+        earnings,
+        hoursWorked,
+        sleepHours,
+        didExercise,
+        motivationLevel,
+        anxietyLevel,
+        projectsCount,
+        goalLineDaily,
+        goalLineAccumulated,
+      };
+    }
+
+    const todayDay = getTodayDay();
+
+    // Find the index of today's day in labels
+    // Assuming labels are numbers representing days
+    let todayIndex = labels.findIndex(
+      (label) => Number(label) === todayDay
+    );
+
+    // If today's day is not found, assume the last label is today
+    if (todayIndex === -1) {
+      todayIndex = labels.length - 1;
+    }
+
+    // Calculate the start index for the last 7 days
+    const startIndex = Math.max(todayIndex - 7, 0);
+
+    // Slice all data arrays accordingly
+    const slicedLabels = labels.slice(startIndex, todayIndex + 2);
+    const slicedEarnings = earnings.slice(startIndex, todayIndex + 2);
+    const slicedHoursWorked = hoursWorked.slice(startIndex, todayIndex + 2);
+    const slicedSleepHours = sleepHours.slice(startIndex, todayIndex + 2);
+    const slicedDidExercise = didExercise.slice(startIndex, todayIndex + 2);
+    const slicedMotivationLevel = motivationLevel.slice(startIndex, todayIndex + 2);
+    const slicedAnxietyLevel = anxietyLevel.slice(startIndex, todayIndex + 2);
+    const slicedProjectsCount = projectsCount.slice(startIndex, todayIndex + 2);
+    const slicedGoalLineDaily = goalLineDaily.slice(startIndex, todayIndex + 2);
+    const slicedGoalLineAccumulated = goalLineAccumulated.slice(startIndex, todayIndex + 2);
+
+    return {
+      labels: slicedLabels,
+      earnings: slicedEarnings,
+      hoursWorked: slicedHoursWorked,
+      sleepHours: slicedSleepHours,
+      didExercise: slicedDidExercise,
+      motivationLevel: slicedMotivationLevel,
+      anxietyLevel: slicedAnxietyLevel,
+      projectsCount: slicedProjectsCount,
+      goalLineDaily: slicedGoalLineDaily,
+      goalLineAccumulated: slicedGoalLineAccumulated,
+    };
+  };
+
+  // Get filtered data
+  const {
+    labels: filteredLabels,
+    earnings: filteredEarnings,
+    hoursWorked: filteredHoursWorked,
+    sleepHours: filteredSleepHours,
+    didExercise: filteredDidExercise,
+    motivationLevel: filteredMotivationLevel,
+    anxietyLevel: filteredAnxietyLevel,
+    projectsCount: filteredProjectsCount,
+    goalLineDaily: filteredGoalLineDaily,
+    goalLineAccumulated: filteredGoalLineAccumulated,
+  } = getFilteredData();
+
   // Data mapping
   const dataMap = {
-    'Earnings': earnings,
-    'Goal': isAccumulatedView ? goalLineAccumulated : goalLineDaily,
-    'Hours Worked': hoursWorked,
-    'Sleep Hours': sleepHours,
-    'Exercise': didExercise.map((exercised) => (exercised ? 1 : 0)), // New data mapping
-    'Anxiety Level': anxietyLevel, // New data mapping
-    'Motivation Level': motivationLevel,
-    'Projects Won': projectsCount, // New data mapping
+    'Earnings': filteredEarnings,
+    'Goal': isAccumulatedView ? filteredGoalLineAccumulated : filteredGoalLineDaily,
+    'Hours Worked': filteredHoursWorked,
+    'Sleep Hours': filteredSleepHours,
+    'Exercise': filteredDidExercise.map((exercised) => (exercised ? 1 : 0)),
+    'Anxiety Level': filteredAnxietyLevel,
+    'Motivation Level': filteredMotivationLevel,
+    'Projects Won': filteredProjectsCount,
   };
 
   // Build datasets based on selected charts
@@ -319,13 +408,13 @@ const ProgressChart = ({
       grid: { drawOnChartArea: false },
       z: 1,
     },
-    y5: { // New y-axis for Anxiety Level
+    y5: {
       type: 'linear',
-      display: true, // Displaying y5
+      display: false, // Hidden
       position: 'right',
       beginAtZero: true,
       min: 0,
-      max: 10, // Adjust based on your scale
+      max: 10,
       ticks: {
         callback: (value) => `${value}`,
         font: { size: isMobile ? 10 : 12 },
@@ -335,11 +424,11 @@ const ProgressChart = ({
     },
     y6: {
       type: 'linear',
-      display: false, // Hidden y6 since Motivation Level is now on y6 with higher z-index
+      display: false, // Hidden
       position: 'right',
       beginAtZero: true,
       min: 0,
-      max: 10, // Changed from 5 to 10
+      max: 10,
       ticks: {
         callback: (value) => `${value}`,
         font: { size: isMobile ? 10 : 12 },
@@ -347,13 +436,13 @@ const ProgressChart = ({
       grid: { drawOnChartArea: false },
       z: 15,
     },
-    y7: { // New y-axis for Projects Won
+    y7: {
       type: 'linear',
-      display: true, // Displaying y7
+      display: false, // Hidden
       position: 'right',
       beginAtZero: true,
       min: 0,
-      max: Math.max(...projectsCount, 10), // Adjust max based on projectsCount data
+      max: Math.max(...filteredProjectsCount, 10),
       ticks: {
         callback: (value) => `${value}`,
         font: { size: isMobile ? 10 : 12 },
@@ -363,7 +452,7 @@ const ProgressChart = ({
     },
   };
 
-  // Include all y-axes in scales, but only y1, y5, and y7 are displayed
+  // Include all y-axes in scales
   const scales = {
     x: {
       grid: { display: false },
@@ -374,17 +463,17 @@ const ProgressChart = ({
         font: { size: isMobile ? 10 : 12 },
       },
     },
-    y1: scalesConfig.y1, // Always include y1
-    y2: scalesConfig.y2, // Include y2 to y7 even if hidden
+    y1: scalesConfig.y1,
+    y2: scalesConfig.y2,
     y3: scalesConfig.y3,
     y4: scalesConfig.y4,
-    y5: scalesConfig.y5, // Added y5 for Anxiety Level
+    y5: scalesConfig.y5,
     y6: scalesConfig.y6,
-    y7: scalesConfig.y7, // Added y7 for Projects Won
+    y7: scalesConfig.y7,
   };
 
   const data = {
-    labels,
+    labels: filteredLabels,
     datasets,
   };
 
@@ -426,7 +515,7 @@ const ProgressChart = ({
                 return `${label}: ${value}`;
               case 'Earnings (USD)':
                 return `${label}: $${value}`;
-              case 'Projects Won': // Added tooltip for Projects Won
+              case 'Projects Won':
                 return `${label}: ${value}`;
               default:
                 return `${label}: ${value}`;
@@ -474,7 +563,7 @@ const ProgressChart = ({
               <option value="Work & Sleep">Work & Sleep</option>
               <option value="Work & Exercise">Work & Exercise</option>
               <option value="Work & Motivation">Work & Motivation</option>
-              <option value="Work, Exercise & Anxiety">Work, Exercise & Anxiety</option> {/* New option */}
+              <option value="Work, Exercise & Anxiety">Work, Exercise & Anxiety</option>
               <option value="All">All</option>
             </select>
           </div>
@@ -486,7 +575,7 @@ const ProgressChart = ({
               'Work & Sleep',
               'Work & Exercise',
               'Work & Motivation',
-              'Work, Exercise & Anxiety', // New option
+              'Work, Exercise & Anxiety',
               'All',
             ].map((tab) => (
               <button
