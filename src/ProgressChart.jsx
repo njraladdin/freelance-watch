@@ -48,17 +48,13 @@ const ProgressChart = ({
     const handleResize = () => {
       setIsMobile(window.innerWidth < 640); // Tailwind's sm breakpoint
     };
-
     handleResize(); // Initial check
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const handleChartSelection = (selection) => {
-    setSelectedCharts(selection);
-  };
+  const handleChartSelection = (selection) => setSelectedCharts(selection);
 
-  // Map of datasets to include for each selection
   const selectionMap = {
     'Work': ['Earnings', 'Goal', 'Hours Worked'],
     'Work & Sleep': ['Earnings', 'Goal', 'Hours Worked', 'Sleep Hours'],
@@ -79,176 +75,6 @@ const ProgressChart = ({
 
   const selectedDatasets = selectionMap[selectedCharts] || [];
 
-  // Dataset configurations
-  const datasetConfigs = {
-    'Earnings': {
-      type: 'line',
-      label: 'Earnings (USD)',
-      borderWidth: 4,
-      fill: true,
-      tension: 0.1,
-      yAxisID: 'y1',
-      z: 10,
-      datalabels: { display: false },
-      pointRadius: isMobile ? 0 : 3, // Hide dots on mobile
-      pointHoverRadius: isMobile ? 0 : 6, // Optionally hide hover dots
-    },
-    'Goal': {
-      type: 'line',
-      label: 'Goal',
-      borderWidth: 2,
-      borderDash: [5, 5],
-      fill: false,
-      pointRadius: 0, // Hide dots
-      yAxisID: 'y1',
-      z: 10,
-      datalabels: { display: false },
-      pointHoverRadius: isMobile ? 0 : 6,
-    },
-    'Hours Worked': {
-      type: 'line',
-      label: 'Hours Worked',
-      borderWidth: 2,
-      fill: true,
-      tension: 0.1,
-      yAxisID: 'y2',
-      z: 10,
-      datalabels: {
-        display: true,
-        align: 'top',
-        formatter: (value) => (value !== 0 ? `${value}h` : ''),
-        font: { weight: 'bold', size: isMobile ? 10 : 11 },
-      },
-      pointRadius: isMobile ? 0 : 3, // Hide dots on mobile
-      pointHoverRadius: isMobile ? 0 : 6,
-    },
-    'Sleep Hours': {
-      type: 'line',
-      label: 'Sleep Hours',
-      borderWidth: 2,
-      fill: false,
-      tension: 0.1,
-      yAxisID: 'y3',
-      z: 1,
-      datalabels: {
-        display: true,
-        align: 'top',
-        formatter: (value) => (value !== 0 ? `${value}h` : ''),
-        font: { weight: 'bold', size: isMobile ? 10 : 11 },
-      },
-      pointRadius: isMobile ? 0 : 3, // Hide dots on mobile
-      pointHoverRadius: isMobile ? 0 : 6,
-    },
-    'Exercise': {
-      type: 'bar',
-      label: 'Exercise',
-      borderWidth: 1,
-      yAxisID: 'y4',
-      z: 1,
-      borderRadius: 5,
-      barPercentage: 0.9,
-      categoryPercentage: 0.9,
-      datalabels: {
-        display: true,
-        align: 'top',
-        formatter: (value) => (value === 1 ? 'Yes' : ''),
-        color: '#666',
-        font: { size: isMobile ? 10 : 11 },
-      },
-      backgroundColor: 'rgba(239, 68, 68, 0.6)', // Red
-    },
-    'Anxiety Level': {
-      type: 'line',
-      label: 'Anxiety Level',
-      borderWidth: 2,
-      fill: false,
-      tension: 0.1,
-      yAxisID: 'y5',
-      z: 15,
-      datalabels: {
-        display: true,
-        align: 'top',
-        formatter: (value) => (value !== 0 ? `${value}` : ''),
-        font: { weight: 'bold', size: isMobile ? 10 : 11 },
-      },
-      pointRadius: isMobile ? 0 : 3,
-      pointHoverRadius: isMobile ? 0 : 6,
-      borderColor: '#8B4513', // Brown
-    },
-    'Motivation Level': {
-      type: 'line',
-      label: 'Motivation Level',
-      borderWidth: 2,
-      fill: false,
-      tension: 0.1,
-      yAxisID: 'y6',
-      z: 15,
-      datalabels: {
-        display: true,
-        align: 'top',
-        formatter: (value) => (value !== 0 ? `${value}` : ''),
-        font: { weight: 'bold', size: isMobile ? 10 : 11 },
-      },
-      pointRadius: isMobile ? 0 : 3,
-      pointHoverRadius: isMobile ? 0 : 6,
-      borderColor: '#FBBF24', // Amber
-    },
-    'Projects Won': {
-      type: 'line', // You can change this to 'bar' if preferred
-      label: 'Projects Won',
-      borderWidth: 2,
-      fill: false,
-      tension: 0.1,
-      yAxisID: 'y7',
-      z: 12,
-      datalabels: {
-        display: true,
-        align: 'top',
-        formatter: (value) => (value !== 0 ? `${value}` : ''),
-        font: { weight: 'bold', size: isMobile ? 10 : 11 },
-      },
-      pointRadius: isMobile ? 0 : 3,
-      pointHoverRadius: isMobile ? 0 : 6,
-      borderColor: '#A855F7', // Purple
-    },
-  };
-
-  // Colors mapping consistent with DayInput.jsx
-  const colorMap = {
-    'Earnings': {
-      borderColor: '#10B981', // Green
-      backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    },
-    'Goal': {
-      borderColor: '#FF6384', // Pink
-      backgroundColor: 'rgba(255, 99, 132, 0.1)',
-    },
-    'Hours Worked': {
-      borderColor: '#2563EB', // Blue
-      backgroundColor: 'rgba(37, 99, 235, 0.1)',
-    },
-    'Sleep Hours': {
-      borderColor: '#F97316', // Orange
-      backgroundColor: 'rgba(249, 115, 22, 0.1)',
-    },
-    'Exercise': {
-      borderColor: '#EF4444', // Red
-      backgroundColor: 'rgba(239, 68, 68, 0.6)',
-    },
-    'Anxiety Level': {
-      borderColor: '#8B4513', // Brown
-      backgroundColor: 'rgba(139, 69, 19, 0.1)',
-    },
-    'Motivation Level': {
-      borderColor: '#FBBF24', // Amber
-      backgroundColor: 'rgba(251, 191, 36, 0.1)',
-    },
-    'Projects Won': {
-      borderColor: '#A855F7', // Purple
-      backgroundColor: 'rgba(168, 85, 247, 0.1)',
-    },
-  };
-
   // Destructure the chartData prop
   const {
     earnings,
@@ -261,16 +87,9 @@ const ProgressChart = ({
     labels,
   } = chartData;
 
-  // Function to get today's day of the month
-  const getTodayDay = () => {
-    const today = new Date();
-    return today.getDate();
-  };
-
   // Function to filter data based on isMobile
   const getFilteredData = () => {
     if (!isMobile) {
-      // If not mobile, return all data
       return {
         labels,
         earnings,
@@ -284,50 +103,26 @@ const ProgressChart = ({
         goalLineAccumulated,
       };
     }
-
-    const todayDay = getTodayDay();
-
-    // Find the index of today's day in labels
-    // Assuming labels are numbers representing days
-    let todayIndex = labels.findIndex(
-      (label) => Number(label) === todayDay
-    );
-
-    // If today's day is not found, assume the last label is today
-    if (todayIndex === -1) {
-      todayIndex = labels.length - 1;
-    }
-
-    // Calculate the start index for the last 7 days
+    const today = new Date().getDate();
+    let todayIndex = labels.findIndex((label) => Number(label) === today);
+    if (todayIndex === -1) todayIndex = labels.length - 1;
     const startIndex = Math.max(todayIndex - 7, 0);
-
-    // Slice all data arrays accordingly
-    const slicedLabels = labels.slice(startIndex, todayIndex + 2);
-    const slicedEarnings = earnings.slice(startIndex, todayIndex + 2);
-    const slicedHoursWorked = hoursWorked.slice(startIndex, todayIndex + 2);
-    const slicedSleepHours = sleepHours.slice(startIndex, todayIndex + 2);
-    const slicedDidExercise = didExercise.slice(startIndex, todayIndex + 2);
-    const slicedMotivationLevel = motivationLevel.slice(startIndex, todayIndex + 2);
-    const slicedAnxietyLevel = anxietyLevel.slice(startIndex, todayIndex + 2);
-    const slicedProjectsCount = projectsCount.slice(startIndex, todayIndex + 2);
-    const slicedGoalLineDaily = goalLineDaily.slice(startIndex, todayIndex + 2);
-    const slicedGoalLineAccumulated = goalLineAccumulated.slice(startIndex, todayIndex + 2);
-
+    const endIndex = todayIndex + 2;
+    const sliceData = (data) => data.slice(startIndex, endIndex);
     return {
-      labels: slicedLabels,
-      earnings: slicedEarnings,
-      hoursWorked: slicedHoursWorked,
-      sleepHours: slicedSleepHours,
-      didExercise: slicedDidExercise,
-      motivationLevel: slicedMotivationLevel,
-      anxietyLevel: slicedAnxietyLevel,
-      projectsCount: slicedProjectsCount,
-      goalLineDaily: slicedGoalLineDaily,
-      goalLineAccumulated: slicedGoalLineAccumulated,
+      labels: sliceData(labels),
+      earnings: sliceData(earnings),
+      hoursWorked: sliceData(hoursWorked),
+      sleepHours: sliceData(sleepHours),
+      didExercise: sliceData(didExercise),
+      motivationLevel: sliceData(motivationLevel),
+      anxietyLevel: sliceData(anxietyLevel),
+      projectsCount: sliceData(projectsCount),
+      goalLineDaily: sliceData(goalLineDaily),
+      goalLineAccumulated: sliceData(goalLineAccumulated),
     };
   };
 
-  // Get filtered data
   const {
     labels: filteredLabels,
     earnings: filteredEarnings,
@@ -341,118 +136,162 @@ const ProgressChart = ({
     goalLineAccumulated: filteredGoalLineAccumulated,
   } = getFilteredData();
 
-  // Data mapping
   const dataMap = {
-    'Earnings': filteredEarnings,
-    'Goal': isAccumulatedView ? filteredGoalLineAccumulated : filteredGoalLineDaily,
-    'Hours Worked': filteredHoursWorked,
-    'Sleep Hours': filteredSleepHours,
-    'Exercise': filteredDidExercise.map((exercised) => (exercised ? 1 : 0)),
-    'Anxiety Level': filteredAnxietyLevel,
-    'Motivation Level': filteredMotivationLevel,
-    'Projects Won': filteredProjectsCount,
+    earnings: filteredEarnings,
+    goalLine: isAccumulatedView ? filteredGoalLineAccumulated : filteredGoalLineDaily,
+    hoursWorked: filteredHoursWorked,
+    sleepHours: filteredSleepHours,
+    exercise: filteredDidExercise.map((exercised) => (exercised ? 1 : 0)),
+    motivationLevel: filteredMotivationLevel,
+    anxietyLevel: filteredAnxietyLevel,
+    projectsWon: filteredProjectsCount,
   };
 
-  // Build datasets based on selected charts
-  const datasets = selectedDatasets.map((datasetName) => ({
-    ...datasetConfigs[datasetName],
-    data: dataMap[datasetName],
-    ...colorMap[datasetName],
+  const datasetsInfo = {
+    'Earnings': {
+      dataKey: 'earnings',
+      type: 'line',
+      label: 'Earnings (USD)',
+      yAxisID: 'y1',
+      borderWidth: 4,
+      fill: true,
+      tension: 0.1,
+      datalabels: { display: false },
+      pointRadius: isMobile ? 0 : 3,
+      pointHoverRadius: isMobile ? 0 : 6,
+      borderColor: '#10B981',
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    },
+    'Goal': {
+      dataKey: 'goalLine',
+      type: 'line',
+      label: 'Goal',
+      yAxisID: 'y1',
+      borderWidth: 2,
+      borderDash: [5, 5],
+      fill: false,
+      pointRadius: 0,
+      datalabels: { display: false },
+      pointHoverRadius: isMobile ? 0 : 6,
+      borderColor: '#FF6384',
+    },
+    'Hours Worked': {
+      dataKey: 'hoursWorked',
+      type: 'line',
+      label: 'Hours Worked',
+      yAxisID: 'y2',
+      borderWidth: 2,
+      fill: true,
+      tension: 0.1,
+      datalabels: {
+        display: true,
+        align: 'top',
+        formatter: (value) => (value ? `${value}h` : ''),
+        font: { weight: 'bold', size: isMobile ? 10 : 11 },
+      },
+      pointRadius: isMobile ? 0 : 3,
+      pointHoverRadius: isMobile ? 0 : 6,
+      borderColor: '#2563EB',
+      backgroundColor: 'rgba(37, 99, 235, 0.1)',
+    },
+    'Sleep Hours': {
+      dataKey: 'sleepHours',
+      type: 'line',
+      label: 'Sleep Hours',
+      yAxisID: 'y3',
+      borderWidth: 2,
+      fill: false,
+      tension: 0.1,
+      datalabels: {
+        display: true,
+        align: 'top',
+        formatter: (value) => (value ? `${value}h` : ''),
+        font: { weight: 'bold', size: isMobile ? 10 : 11 },
+      },
+      pointRadius: isMobile ? 0 : 3,
+      pointHoverRadius: isMobile ? 0 : 6,
+      borderColor: '#F97316',
+    },
+    'Exercise': {
+      dataKey: 'exercise',
+      type: 'bar',
+      label: 'Exercise',
+      yAxisID: 'y4',
+      borderWidth: 1,
+      borderRadius: 5,
+      barPercentage: 0.9,
+      categoryPercentage: 0.9,
+      datalabels: {
+        display: true,
+        align: 'top',
+        formatter: (value) => (value === 1 ? 'Yes' : ''),
+        color: '#666',
+        font: { size: isMobile ? 10 : 11 },
+      },
+      borderColor: '#EF4444',
+      backgroundColor: 'rgba(239, 68, 68, 0.6)',
+    },
+    'Anxiety Level': {
+      dataKey: 'anxietyLevel',
+      type: 'line',
+      label: 'Anxiety Level',
+      yAxisID: 'y5',
+      borderWidth: 2,
+      fill: false,
+      tension: 0.1,
+      datalabels: {
+        display: true,
+        align: 'top',
+        formatter: (value) => (value ? `${value}` : ''),
+        font: { weight: 'bold', size: isMobile ? 10 : 11 },
+      },
+      pointRadius: isMobile ? 0 : 3,
+      pointHoverRadius: isMobile ? 0 : 6,
+      borderColor: '#8B4513',
+    },
+    'Motivation Level': {
+      dataKey: 'motivationLevel',
+      type: 'line',
+      label: 'Motivation Level',
+      yAxisID: 'y6',
+      borderWidth: 2,
+      fill: false,
+      tension: 0.1,
+      datalabels: {
+        display: true,
+        align: 'top',
+        formatter: (value) => (value ? `${value}` : ''),
+        font: { weight: 'bold', size: isMobile ? 10 : 11 },
+      },
+      pointRadius: isMobile ? 0 : 3,
+      pointHoverRadius: isMobile ? 0 : 6,
+      borderColor: '#FBBF24',
+    },
+    'Projects Won': {
+      dataKey: 'projectsWon',
+      type: 'line',
+      label: 'Projects Won',
+      yAxisID: 'y7',
+      borderWidth: 2,
+      fill: false,
+      tension: 0.1,
+      datalabels: {
+        display: true,
+        align: 'top',
+        formatter: (value) => (value ? `${value}` : ''),
+        font: { weight: 'bold', size: isMobile ? 10 : 11 },
+      },
+      pointRadius: isMobile ? 0 : 3,
+      pointHoverRadius: isMobile ? 0 : 6,
+      borderColor: '#A855F7',
+    },
+  };
+
+  const datasets = selectedDatasets.map((name) => ({
+    ...datasetsInfo[name],
+    data: dataMap[datasetsInfo[name].dataKey],
   }));
 
-  // Define scales configurations
-  const scalesConfig = {
-    y1: {
-      type: 'linear',
-      display: true, // Only y1 is displayed
-      position: 'left',
-      beginAtZero: true,
-      min: 0, // Ensure starts at 0
-      ticks: {
-        callback: (value) => `$${value}`,
-        font: { size: isMobile ? 10 : 12 },
-      },
-      suggestedMin: 0,
-      z: 10,
-    },
-    y2: {
-      type: 'linear',
-      display: false, // Hidden
-      position: 'right',
-      beginAtZero: true,
-      min: 0, // Ensure starts at 0
-      max: 24,
-      ticks: { display: false },
-      grid: { drawOnChartArea: false },
-      z: 10,
-    },
-    y3: {
-      type: 'linear',
-      display: false, // Hidden
-      position: 'left',
-      beginAtZero: true,
-      min: 0, // Ensure starts at 0
-      max: 20,
-      ticks: { display: false },
-      grid: { drawOnChartArea: false },
-      z: 1,
-    },
-    y4: {
-      type: 'linear',
-      display: false, // Hidden
-      position: 'right',
-      beginAtZero: true,
-      min: 0, // Ensure starts at 0
-      max: 10, // Set max to 10 to limit height
-      ticks: { display: false },
-      grid: { drawOnChartArea: false },
-      z: 1,
-    },
-    y5: {
-      type: 'linear',
-      display: false, // Hidden
-      position: 'right',
-      beginAtZero: true,
-      min: 0,
-      max: 10,
-      ticks: {
-        callback: (value) => `${value}`,
-        font: { size: isMobile ? 10 : 12 },
-      },
-      grid: { drawOnChartArea: false },
-      z: 15,
-    },
-    y6: {
-      type: 'linear',
-      display: false, // Hidden
-      position: 'right',
-      beginAtZero: true,
-      min: 0,
-      max: 10,
-      ticks: {
-        callback: (value) => `${value}`,
-        font: { size: isMobile ? 10 : 12 },
-      },
-      grid: { drawOnChartArea: false },
-      z: 15,
-    },
-    y7: {
-      type: 'linear',
-      display: false, // Hidden
-      position: 'right',
-      beginAtZero: true,
-      min: 0,
-      max: Math.max(...filteredProjectsCount, 10),
-      ticks: {
-        callback: (value) => `${value}`,
-        font: { size: isMobile ? 10 : 12 },
-      },
-      grid: { drawOnChartArea: false },
-      z: 12,
-    },
-  };
-
-  // Include all y-axes in scales
   const scales = {
     x: {
       grid: { display: false },
@@ -463,13 +302,64 @@ const ProgressChart = ({
         font: { size: isMobile ? 10 : 12 },
       },
     },
-    y1: scalesConfig.y1,
-    y2: scalesConfig.y2,
-    y3: scalesConfig.y3,
-    y4: scalesConfig.y4,
-    y5: scalesConfig.y5,
-    y6: scalesConfig.y6,
-    y7: scalesConfig.y7,
+    y1: {
+      type: 'linear',
+      display: true,
+      position: 'left',
+      beginAtZero: true,
+      ticks: {
+        callback: (value) => `$${value}`,
+        font: { size: isMobile ? 10 : 12 },
+      },
+    },
+    y2: {
+      type: 'linear',
+      display: false,
+      position: 'right',
+      beginAtZero: true,
+      max: 24,
+      grid: { drawOnChartArea: false },
+    },
+    y3: {
+      type: 'linear',
+      display: false,
+      position: 'left',
+      beginAtZero: true,
+      max: 20,
+      grid: { drawOnChartArea: false },
+    },
+    y4: {
+      type: 'linear',
+      display: false,
+      position: 'right',
+      beginAtZero: true,
+      max: 10,
+      grid: { drawOnChartArea: false },
+    },
+    y5: {
+      type: 'linear',
+      display: false,
+      position: 'right',
+      beginAtZero: true,
+      max: 10,
+      grid: { drawOnChartArea: false },
+    },
+    y6: {
+      type: 'linear',
+      display: false,
+      position: 'right',
+      beginAtZero: true,
+      max: 10,
+      grid: { drawOnChartArea: false },
+    },
+    y7: {
+      type: 'linear',
+      display: false,
+      position: 'right',
+      beginAtZero: true,
+      max: Math.max(...filteredProjectsCount, 10),
+      grid: { drawOnChartArea: false },
+    },
   };
 
   const data = {
@@ -488,43 +378,23 @@ const ProgressChart = ({
         display: true,
         position: isMobile ? 'bottom' : 'top',
         labels: {
-          font: {
-            size: isMobile ? 10 : 12,
-          },
+          font: { size: isMobile ? 10 : 12 },
           usePointStyle: true,
           pointStyle: 'circle',
         },
       },
       tooltip: {
         callbacks: {
-          label: function (context) {
-            const label = context.dataset.label;
-            const value = context.parsed.y;
-            switch (label) {
-              case 'Goal':
-                return `${label}: $${Math.ceil(value)}`;
-              case 'Sleep Hours':
-                return `${label}: ${value}h`;
-              case 'Exercise':
-                return `${label}: ${value === 1 ? 'Yes' : 'No'}`;
-              case 'Anxiety Level':
-                return `${label}: ${value}`;
-              case 'Hours Worked':
-                return `${label}: ${value}h`;
-              case 'Motivation Level':
-                return `${label}: ${value}`;
-              case 'Earnings (USD)':
-                return `${label}: $${value}`;
-              case 'Projects Won':
-                return `${label}: ${value}`;
-              default:
-                return `${label}: ${value}`;
-            }
+          label: ({ dataset, parsed }) => {
+            const { label } = dataset;
+            const value = parsed.y;
+            const suffix = label.includes('Hours') ? 'h' : '';
+            const prefix = label === 'Earnings (USD)' || label === 'Goal' ? '$' : '';
+            const displayValue =
+              label === 'Exercise' ? (value === 1 ? 'Yes' : 'No') : `${prefix}${value}${suffix}`;
+            return `${label}: ${displayValue}`;
           },
-          title: function (tooltipItems) {
-            const day = tooltipItems[0].label;
-            return `Day ${day}`;
-          },
+          title: (tooltipItems) => `Day ${tooltipItems[0].label}`,
         },
         titleFont: { size: isMobile ? 12 : 14 },
         bodyFont: { size: isMobile ? 10 : 12 },
@@ -559,25 +429,17 @@ const ProgressChart = ({
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
               aria-label="Select Chart View"
             >
-              <option value="Work">Work</option>
-              <option value="Work & Sleep">Work & Sleep</option>
-              <option value="Work & Exercise">Work & Exercise</option>
-              <option value="Work & Motivation">Work & Motivation</option>
-              <option value="Work, Exercise & Anxiety">Work, Exercise & Anxiety</option>
-              <option value="All">All</option>
+              {Object.keys(selectionMap).map((tab) => (
+                <option key={tab} value={tab}>
+                  {tab}
+                </option>
+              ))}
             </select>
           </div>
         ) : (
           // Button Group for Desktop
           <div className="flex items-center space-x-2 overflow-x-auto">
-            {[
-              'Work',
-              'Work & Sleep',
-              'Work & Exercise',
-              'Work & Motivation',
-              'Work, Exercise & Anxiety',
-              'All',
-            ].map((tab) => (
+            {Object.keys(selectionMap).map((tab) => (
               <button
                 key={tab}
                 onClick={() => handleChartSelection(tab)}
@@ -604,7 +466,7 @@ const ProgressChart = ({
         </button>
       </div>
       <div className="w-full overflow-x-auto">
-        <div className={`min-w-[300px] max-w-full h-64 sm:h-80 lg:h-96`}>
+        <div className="min-w-[300px] max-w-full h-64 sm:h-80 lg:h-96">
           <Chart type="line" data={data} options={options} />
         </div>
       </div>
