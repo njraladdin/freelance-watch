@@ -555,7 +555,7 @@ const App = () => {
       <div className="flex flex-col space-y-8">
         {/* Inputs Section */}
         <section className="bg-white p-6 rounded-3xl shadow-md">
-          <h2 className="text-2xl font-semibold mb-4 border-b pb-2 text-gray-600">
+          <h2 className="text-2xl font-bold mb-6 border-b pb-2 text-gray-600">
             Daily Inputs
           </h2>
           {isCurrentMonthLoaded ? (

@@ -1,4 +1,5 @@
 // src/MetricsDashboard.jsx
+
 import React, { useMemo, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import {
@@ -9,6 +10,12 @@ import {
   FiTarget,
   FiBriefcase,
 } from 'react-icons/fi';
+import {
+  FaBed,
+  FaLaptop,
+  FaQuestion,
+  FaUserClock,
+} from 'react-icons/fa'; // Imported new icons
 
 // Helper functions
 const formatCurrency = (amount) =>
@@ -20,38 +27,114 @@ const formatHoursAndMinutes = (decimalHours) => {
   return `${hours}h ${minutes}m`;
 };
 
+const roundHours = (decimalHours) => {
+  return decimalHours > 0 ? Math.round(decimalHours) : 0;
+};
+
 const calculateAverage = (numbers) => {
   const validNumbers = numbers.filter((num) => num != null);
-  return validNumbers.length ? validNumbers.reduce((acc, curr) => acc + curr, 0) / validNumbers.length : 0;
+  return validNumbers.length
+    ? validNumbers.reduce((acc, curr) => acc + curr, 0) / validNumbers.length
+    : 0;
+};
+
+const mapHoursToActivities = (selectedDate, todayRecord, currentTime) => {
+  const activities = Array(24).fill('Available'); // Renamed from 'Empty' to 'Available'
+
+  const { sleepStartTime, sleepEndTime, workStartTime, workEndTime } = todayRecord;
+
+  const isHourInRange = (hour, start, end) => {
+    if (start == null || end == null) return false;
+    if (start <= end) {
+      return hour >= start && hour < end;
+    } else {
+      return hour >= start || hour < end;
+    }
+  };
+
+  if (sleepStartTime != null && sleepEndTime != null) {
+    for (let hour = 0; hour < 24; hour++) {
+      if (isHourInRange(hour, sleepStartTime, sleepEndTime)) {
+        activities[hour] = 'Sleep';
+      }
+    }
+  }
+
+  if (workStartTime != null && workEndTime != null) {
+    for (let hour = 0; hour < 24; hour++) {
+      if (isHourInRange(hour, workStartTime, workEndTime)) {
+        activities[hour] = 'Work';
+      }
+    }
+  }
+
+  const now = currentTime;
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+  const isPastHour = (hour) => {
+    if (hour < currentHour) return true;
+    if (hour === currentHour && currentMinute > 0) return true;
+    return false;
+  };
+
+  for (let hour = 0; hour < 24; hour++) {
+    if (activities[hour] === 'Available' && isPastHour(hour)) {
+      activities[hour] = 'Other';
+    }
+  }
+
+  return activities;
 };
 
 // DayActivityProgressBar Component
-const DayActivityProgressBar = ({ sleepPercentage, workPercentage, otherPercentage }) => (
-  <div className="w-full bg-gray-200 rounded-full h-3 flex overflow-hidden">
-    <div className="h-full bg-blue-500" style={{ width: `${sleepPercentage}%` }}></div>
-    <div className="h-full bg-green-500" style={{ width: `${workPercentage}%` }}></div>
-    <div className="h-full bg-purple-500" style={{ width: `${otherPercentage}%` }}></div>
-  </div>
-);
+const DayActivityProgressBar = ({
+  sleepPercentage,
+  workPercentage,
+  otherPercentage,
+  availablePercentage,
+}) => {
+  return (
+    <div className="w-full bg-gray-200 rounded-full h-4 flex overflow-hidden">
+      <div
+        className="h-full bg-blue-500"
+        style={{ width: `${sleepPercentage}%` }}
+        title={`Sleep: ${roundHours((sleepPercentage / 100) * 24)}h`}
+      ></div>
+      <div
+        className="h-full bg-green-500"
+        style={{ width: `${workPercentage}%` }}
+        title={`Work: ${roundHours((workPercentage / 100) * 24)}h`}
+      ></div>
+      <div
+        className="h-full bg-yellow-500"
+        style={{ width: `${otherPercentage}%` }}
+        title={`Other: ${roundHours((otherPercentage / 100) * 24)}h`}
+      ></div>
+      <div
+        className="h-full bg-gray-300"
+        style={{ width: `${availablePercentage}%` }}
+        title={`Available: ${roundHours((availablePercentage / 100) * 24)}h`}
+      ></div>
+    </div>
+  );
+};
 
 DayActivityProgressBar.propTypes = {
-  sleepPercentage: PropTypes.string.isRequired,
-  workPercentage: PropTypes.string.isRequired,
-  otherPercentage: PropTypes.string.isRequired,
+  sleepPercentage: PropTypes.number.isRequired,
+  workPercentage: PropTypes.number.isRequired,
+  otherPercentage: PropTypes.number.isRequired,
+  availablePercentage: PropTypes.number.isRequired,
 };
 
 // MetricCard Component
-const MetricCard = ({ icon: Icon, title, value, subValue, color, compact }) => (
-  <div
-    className={`flex flex-col justify-between items-center bg-gray-50 p-4 rounded-lg transition-shadow duration-150 ease-in-out 
-    ${compact ? 'h-32 w-32' : 'h-40 w-40'}`}
-  >
-    <Icon className={`w-5 h-5 text-${color}-500`} />
-    <div className="flex flex-col items-center justify-center">
-      <p className="text-lg font-semibold text-gray-800">{value}</p>
-      {subValue && <p className="text-xs text-gray-500 mt-0.5">{subValue}</p>}
+const MetricCard = ({ icon: Icon, title, value, subValue, color }) => (
+  <div className="flex flex-col bg-white shadow-md p-4 rounded-lg w-full">
+    <div className="flex items-center mb-2">
+      <Icon className={`w-6 h-6 text-${color}-500`} />
+      <h3 className="ml-2 text-lg font-semibold text-gray-700">{title}</h3>
     </div>
-    <p className="text-sm font-medium text-gray-700 text-center">{title}</p>
+    <p className="text-2xl font-bold text-gray-800">{value}</p>
+    {subValue && <p className="text-sm text-gray-500">{subValue}</p>}
   </div>
 );
 
@@ -61,14 +144,12 @@ MetricCard.propTypes = {
   value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
   subValue: PropTypes.string,
   color: PropTypes.string,
-  compact: PropTypes.bool,
 };
 
 // Main MetricsDashboard Component
 const MetricsDashboard = ({ selectedGoal, currentMonthRecords, selectedDate }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Update currentTime every minute for real-time metrics
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
@@ -76,6 +157,42 @@ const MetricsDashboard = ({ selectedGoal, currentMonthRecords, selectedDate }) =
 
   const todayKey = selectedDate.toISOString().split('T')[0];
   const todayRecord = currentMonthRecords[todayKey] || {};
+
+  const activities = useMemo(() => {
+    return mapHoursToActivities(selectedDate, todayRecord, currentTime);
+  }, [todayRecord, selectedDate, currentTime]);
+
+  const {
+    sleepHours,
+    workHours,
+    otherHours,
+    availableHours,
+    sleepPercentage,
+    workPercentage,
+    otherPercentage,
+    availablePercentage,
+  } = useMemo(() => {
+    const sleepHours = activities.filter((a) => a === 'Sleep').length;
+    const workHours = activities.filter((a) => a === 'Work').length;
+    const otherHours = activities.filter((a) => a === 'Other').length;
+    const availableHours = activities.filter((a) => a === 'Available').length;
+
+    const sleepPercentage = (sleepHours / 24) * 100;
+    const workPercentage = (workHours / 24) * 100;
+    const otherPercentage = (otherHours / 24) * 100;
+    const availablePercentage = (availableHours / 24) * 100;
+
+    return {
+      sleepHours,
+      workHours,
+      otherHours,
+      availableHours,
+      sleepPercentage,
+      workPercentage,
+      otherPercentage,
+      availablePercentage,
+    };
+  }, [activities]);
 
   const {
     totalEarnings,
@@ -114,99 +231,70 @@ const MetricsDashboard = ({ selectedGoal, currentMonthRecords, selectedDate }) =
     };
   }, [selectedGoal, currentMonthRecords, selectedDate]);
 
-  const {
-    timeFromWakeUpUntilWork,
-    hoursWorkedSoFar,
-    sleepPercentage,
-    workPercentage,
-    otherPercentage,
-  } = useMemo(() => {
-    const {
-      sleepEndTime,
-      sleepHours = 0,
-      workStartTime,
-      workEndTime,
-    } = todayRecord;
+  const { timeFromWakeUpUntilWork, hoursWorkedSoFar } = useMemo(() => {
+    let timeFromWakeUpUntilWorkValue = 'N/A';
+    let hoursWorkedSoFarValue = 'N/A';
 
-    let timeFromWakeUpUntilWork = 'N/A';
-    let hoursWorkedSoFar = 'N/A';
+    const sleepEnd = todayRecord.sleepEndTime;
+    const workStart = todayRecord.workStartTime;
+    const workEnd = todayRecord.workEndTime;
 
-    if (sleepEndTime != null) {
+    if (sleepEnd != null) {
       const wakeUpTime = new Date(selectedDate);
-      wakeUpTime.setHours(sleepEndTime, 0, 0, 0);
+      wakeUpTime.setHours(sleepEnd, 0, 0, 0);
 
-      if (workStartTime != null) {
-        // Work start time is available
+      if (workStart != null) {
         const workStartDateTime = new Date(selectedDate);
-        workStartDateTime.setHours(workStartTime, 0, 0, 0);
+        workStartDateTime.setHours(workStart, 0, 0, 0);
 
         const timeToWork = (workStartDateTime - wakeUpTime) / (1000 * 60 * 60);
-        timeFromWakeUpUntilWork = formatHoursAndMinutes(timeToWork);
+        timeFromWakeUpUntilWorkValue = formatHoursAndMinutes(timeToWork);
       } else {
-        // No work start time, calculate time since wake up until now
         const timeSinceWakeUp = (currentTime - wakeUpTime) / (1000 * 60 * 60);
 
         if (timeSinceWakeUp > 24) {
-          timeFromWakeUpUntilWork = 'N/A';
+          timeFromWakeUpUntilWorkValue = 'N/A';
         } else {
-          timeFromWakeUpUntilWork = formatHoursAndMinutes(timeSinceWakeUp);
+          timeFromWakeUpUntilWorkValue = formatHoursAndMinutes(timeSinceWakeUp);
         }
       }
     }
 
-    // Calculate hours worked so far
-    if (workStartTime != null) {
+    if (workStart != null) {
       const workStartDateTime = new Date(selectedDate);
-      workStartDateTime.setHours(workStartTime, 0, 0, 0);
+      workStartDateTime.setHours(workStart, 0, 0, 0);
 
       let workEndDateTime;
-      if (workEndTime != null) {
+      if (workEnd != null) {
         workEndDateTime = new Date(selectedDate);
-        workEndDateTime.setHours(workEndTime, 0, 0, 0);
+        workEndDateTime.setHours(workEnd, 0, 0, 0);
       } else {
         workEndDateTime = currentTime;
       }
 
       if (workEndDateTime < workStartDateTime) {
-        // If work end time is earlier than start time, assume it ends the next day
         workEndDateTime.setDate(workEndDateTime.getDate() + 1);
       }
 
       const workedTime = (workEndDateTime - workStartDateTime) / (1000 * 60 * 60);
-      hoursWorkedSoFar = formatHoursAndMinutes(workedTime);
+      hoursWorkedSoFarValue = formatHoursAndMinutes(workedTime);
     }
 
-    const workHours =
-      hoursWorkedSoFar !== 'N/A' && hoursWorkedSoFar !== 'Not started'
-        ? parseFloat(hoursWorkedSoFar.split('h')[0]) +
-          (parseFloat(hoursWorkedSoFar.split(' ')[1].replace('m', '')) / 60)
-        : 0;
-
-    const otherHours = Math.max(0, 24 - sleepHours - workHours);
-
-    const total = sleepHours + workHours + otherHours;
-    const sleepPercentage = total ? ((sleepHours / total) * 100).toFixed(0) : '0';
-    const workPercentage = total ? ((workHours / total) * 100).toFixed(0) : '0';
-    const otherPercentage = total ? ((otherHours / total) * 100).toFixed(0) : '0';
-
     return {
-      timeFromWakeUpUntilWork,
-      hoursWorkedSoFar,
-      sleepPercentage,
-      workPercentage,
-      otherPercentage,
+      timeFromWakeUpUntilWork: timeFromWakeUpUntilWorkValue,
+      hoursWorkedSoFar: hoursWorkedSoFarValue,
     };
   }, [todayRecord, selectedDate, currentTime]);
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      {/* Today Overview Section */}
-      <h2 className="text-xl sm:text-2xl font-semibold mb-4 border-b pb-2 text-gray-600">Today</h2>
-      <div className="bg-white pb-6 px-0 rounded-lg md:px-6">
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-6 justify-items-center lg:justify-items-start">
+    <div className="space-y-12 max-w-7xl mx-auto px-0 sm:px-6 lg:px-8">
+      {/* Today's Summary Section */}
+      <section>
+        <h2 className="text-2xl font-bold mb-6 border-b pb-2 text-gray-600">Today's Summary</h2>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <MetricCard
             icon={FiClock}
-            title="Time from wakeup to work"
+            title="Time from Wake Up to Work"
             value={timeFromWakeUpUntilWork}
             color="blue"
           />
@@ -216,106 +304,129 @@ const MetricsDashboard = ({ selectedGoal, currentMonthRecords, selectedDate }) =
             value={hoursWorkedSoFar}
             color="green"
           />
-          <div className="flex flex-col space-y-4 bg-gray-50 p-5 rounded-lg shadow-inner col-span-2 lg:col-span-1 w-full">
-            <div className="flex items-center space-x-2">
-              <FiBarChart2 className="text-purple-500 w-6 h-6" />
-              <p className="text-sm text-gray-500 text-center">Day Activity</p>
-            </div>
-            <DayActivityProgressBar
-              sleepPercentage={sleepPercentage}
-              workPercentage={workPercentage}
-              otherPercentage={otherPercentage}
-            />
-            <div className="flex justify-between text-xs text-gray-600 mt-2">
-              <span className="flex items-center">
-                <span className="inline-block w-3 h-3 bg-blue-500 rounded-full mr-1"></span>
-                Sleep {sleepPercentage}%
-              </span>
-              <span className="flex items-center">
-                <span className="inline-block w-3 h-3 bg-green-500 rounded-full mr-1"></span>
-                Work {workPercentage}%
-              </span>
-              <span className="flex items-center">
-                <span className="inline-block w-3 h-3 bg-purple-500 rounded-full mr-1"></span>
-                Other {otherPercentage}%
-              </span>
-            </div>
-          </div>
+          <div className="bg-white shadow-md p-4 rounded-lg col-span-1 md:col-span-2">
+  <div className="flex items-center mb-4">
+    <FiBarChart2 className="w-6 h-6 text-purple-500" />
+    <h3 className="ml-2 text-lg font-semibold text-gray-700">Today's Activities</h3>
+  </div>
+  <DayActivityProgressBar
+    sleepPercentage={sleepPercentage}
+    workPercentage={workPercentage}
+    otherPercentage={otherPercentage}
+    availablePercentage={availablePercentage}
+  />
+  <div className="flex justify-between text-sm text-gray-600 mt-4">
+    {/* Sleep */}
+    <div className="flex flex-col items-center">
+      <FaBed className="w-5 h-5 text-blue-500 mb-1" />
+      <span className="font-medium">Sleep</span>
+      <span className="text-xs font-semibold text-blue-500">{roundHours(sleepHours)}h</span>
+    </div>
+    {/* Work */}
+    <div className="flex flex-col items-center">
+      <FaLaptop className="w-5 h-5 text-green-500 mb-1" />
+      <span className="font-medium">Work</span>
+      <span className="text-xs font-semibold text-green-500">{roundHours(workHours)}h</span>
+    </div>
+    {/* Other */}
+    <div className="flex flex-col items-center">
+      <FaUserClock className="w-5 h-5 text-yellow-500 mb-1" />
+      <span className="font-medium">Other</span>
+      <span className="text-xs font-semibold text-yellow-500">{roundHours(otherHours)}h</span>
+    </div>
+    {/* Available */}
+    <div className="flex flex-col items-center">
+      <FaQuestion className="w-5 h-5 text-gray-500 mb-1" />
+      <span className="font-medium">Available</span>
+      <span className="text-xs font-semibold text-gray-500">{roundHours(availableHours)}h</span>
+    </div>
+  </div>
+</div>
+
         </div>
-      </div>
+      </section>
 
       {/* Month Overview Section */}
-      <h2 className="text-xl sm:text-2xl font-semibold mb-4 border-b pb-2 text-gray-600">
-        Overview -{' '}
-        {new Date().toLocaleString('default', {
-          month: 'short',
-          year: 'numeric',
-        })}
-      </h2>
-      <div className="bg-white p-6 rounded-lg shadow-md">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-          <div className="mb-4 sm:mb-0">
-            <p className="text-3xl font-bold text-gray-800">{formatCurrency(totalEarnings)}</p>
-            <p className="text-sm text-gray-500">Total Earnings</p>
+      <section>
+        <h2 className="text-2xl font-bold mb-6 border-b pb-2 text-gray-600">
+          {selectedDate.toLocaleString('default', { month: 'long', year: 'numeric' })} Overview
+        </h2>
+        <div className="bg-white shadow-md p-6 rounded-lg">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6">
+            <div className="mb-4 sm:mb-0">
+              <p className="text-4xl font-bold text-green-600">{formatCurrency(totalEarnings)}</p>
+              <p className="text-sm text-gray-500">Total Earnings</p>
+            </div>
+            <div>
+              <p className="text-4xl font-bold text-blue-600">{formatCurrency(selectedGoal)}</p>
+              <p className="text-sm text-gray-500">Goal for the Month</p>
+            </div>
           </div>
-          <div>
-            <p className="text-3xl font-bold text-gray-800">{formatCurrency(selectedGoal)}</p>
-            <p className="text-sm text-gray-500">Selected Goal</p>
+          <div className="w-full bg-gray-200 rounded-full h-4">
+            <div
+              className="bg-green-500 h-4 rounded-full"
+              style={{ width: `${Math.min((totalEarnings / selectedGoal) * 100, 100)}%` }}
+            ></div>
           </div>
+          <p className="text-right text-sm text-gray-600 mt-2">
+            {Math.min(((totalEarnings / selectedGoal) * 100).toFixed(2), 100)}% of goal achieved
+          </p>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
-          <div
-            className="bg-green-500 rounded-full h-2 transition-all duration-300 ease-in-out"
-            style={{ width: `${Math.min((totalEarnings / selectedGoal) * 100, 100)}%` }}
-          ></div>
-        </div>
-      </div>
+      </section>
 
-      {/* Metric Cards Section */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 justify-items-center md:justify-items-start">
-        <MetricCard
-          icon={FiClock}
-          title="Avg Earnings per Hour"
-          value={formatCurrency(averageEarningsPerHour)}
-          subValue="per hour"
-          color="green"
-        />
-        <MetricCard
-          icon={FiCreditCard}
-          title="Avg Earnings per Day"
-          value={formatCurrency(averageEarningsPerDay)}
-          subValue="per day"
-          color="indigo"
-        />
-        <MetricCard
-          icon={FiBarChart2}
-          title="Avg Hours Worked"
-          value={`${averageHoursWorked.toFixed(1)} hrs`}
-          subValue="per day"
-          color="yellow"
-        />
-        <MetricCard
-          icon={FiMoon}
-          title="Avg Sleep"
-          value={`${averageSleep.toFixed(1)} hrs`}
-          subValue="per day"
-          color="blue"
-        />
-      </div>
-
-      {/* Next Step Section */}
-      <div className="bg-gray-50 p-6 rounded-lg shadow-inner">
-        <div className="flex items-center space-x-3 mb-4">
-          <FiTarget className="text-orange-500 w-5 h-5" />
-          <h2 className="text-lg font-bold text-gray-800">Next Step</h2>
+      {/* Key Metrics Section */}
+      <section>
+        {/* <h2 className="text-2xl font-bold mb-6 text-gray-800">Key Metrics</h2> */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+          <MetricCard
+            icon={FiCreditCard}
+            title="Avg Earnings / Day"
+            value={formatCurrency(averageEarningsPerDay)}
+            subValue="Per Day"
+            color="indigo"
+          />
+          <MetricCard
+            icon={FiClock}
+            title="Avg Earnings / Hour"
+            value={formatCurrency(averageEarningsPerHour)}
+            subValue="Per Hour"
+            color="green"
+          />
+          <MetricCard
+            icon={FiBriefcase}
+            title="Avg Hours Worked"
+            value={`${averageHoursWorked.toFixed(1)} hrs`}
+            subValue="Per Day"
+            color="yellow"
+          />
+          <MetricCard
+            icon={FiMoon}
+            title="Avg Sleep Duration"
+            value={`${averageSleep.toFixed(1)} hrs`}
+            subValue="Per Day"
+            color="blue"
+          />
         </div>
-        <p className="text-base text-gray-700">
+      </section>
+
+        {/* Updated Next Step Section */}
+        <div className="bg-white p-4 rounded-lg shadow-md flex items-center space-x-4">
+      <FiTarget className="text-orange-500 w-8 h-8 flex-shrink-0" />
+      <div>
+        <h2 className="text-md font-semibold text-gray-800">Your Mission</h2>
+        <p className="text-sm text-gray-600">
           Earn{' '}
-          <span className="font-bold text-orange-600">{formatCurrency(dailyPace)}</span> daily
-          for the next{' '}
-          <span className="font-bold text-orange-600">{remainingDays} days</span> to hit your goal.
+          <span className="font-bold text-orange-600">
+            {formatCurrency(dailyPace)}
+          </span>{' '}
+          daily for the next{' '}
+          <span className="font-bold text-orange-600">
+            {remainingDays} days
+          </span>{' '}
+          to reach your goal.
         </p>
       </div>
+    </div>
     </div>
   );
 };
