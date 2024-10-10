@@ -496,14 +496,13 @@ const DayInput = React.memo(({ onDataChange, record, date, onDateChange }) => {
 
             <button
               onClick={handleBreakToggle}
-              disabled={!workStartTime}
               className={`flex md:hidden items-center px-3 py-3 rounded-md mt-6 ${
                 workBreak.isActive
                   ? 'bg-red-200 text-red-800'
                   : 'bg-blue-200 text-blue-800'
-              } ${!workStartTime ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${!workStartTime ? 'hidden' : ''}`}
               aria-label="Toggle Break"
-              title={!workStartTime ? 'Set a start time first to start a break' : ''}
+              style={{ display: workStartTime ? 'flex' : 'none' }}
             >
               {workBreak.isActive ? (
                 <>
