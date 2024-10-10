@@ -14,11 +14,9 @@ import {
   where,
 } from 'firebase/firestore';
 import MetricsDashboard from './MetricsDashboard'; // Import the new component
-import useNotifications from './hooks/useNotifications'; // Import the custom hook
 
 const App = () => {
   const userId = 'defaultUser'; // Replace with actual user ID in production
-  //useNotifications(userId);
 
   // Memoize Firestore references to prevent useEffect from triggering infinitely
   const recordsCollection = useMemo(

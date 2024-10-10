@@ -17,6 +17,54 @@ import {
   FaUserClock,
 } from 'react-icons/fa'; // Imported new icons
 
+
+const DayActivityProgressBar = ({
+  sleepPercentage,
+  workPercentage,
+  otherPercentage,
+  availablePercentage,
+  extraAvailablePercentage, // New
+}) => {
+  return (
+    <div className="w-full bg-gray-200 rounded-full h-4 flex overflow-hidden relative">
+      <div
+        className="h-full bg-blue-500"
+        style={{ width: `${sleepPercentage}%` }}
+        title={`Sleep: ${roundHours((sleepPercentage / 100) * 24)}h`}
+      ></div>
+      <div
+        className="h-full bg-green-500"
+        style={{ width: `${workPercentage}%` }}
+        title={`Work: ${roundHours((workPercentage / 100) * 24)}h`}
+      ></div>
+      <div
+        className="h-full bg-yellow-500"
+        style={{ width: `${otherPercentage}%` }}
+        title={`Other: ${roundHours((otherPercentage / 100) * 24)}h`}
+      ></div>
+      <div
+        className="h-full bg-gray-300"
+        style={{ width: `${availablePercentage}%` }}
+        title={`Available: ${roundHours((availablePercentage / 100) * 24)}h`}
+      ></div>
+      {extraAvailablePercentage > 0 && (
+        <div
+          className="h-full bg-red-500 absolute top-0 left-full"
+          style={{ width: `${extraAvailablePercentage}%` }}
+          title={`Extra Available: ${roundHours((extraAvailablePercentage / 100) * 24)}h`}
+        ></div>
+      )}
+    </div>
+  );
+};
+
+DayActivityProgressBar.propTypes = {
+  sleepPercentage: PropTypes.number.isRequired,
+  workPercentage: PropTypes.number.isRequired,
+  otherPercentage: PropTypes.number.isRequired,
+  availablePercentage: PropTypes.number.isRequired,
+  extraAvailablePercentage: PropTypes.number, // New
+};
 // Helper functions
 const formatCurrency = (amount) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -39,7 +87,7 @@ const calculateAverage = (numbers) => {
 };
 
 const mapHoursToActivities = (selectedDate, todayRecord, currentTime) => {
-  const activities = Array(24).fill('Available'); // Renamed from 'Empty' to 'Available'
+  const activities = Array(24).fill('Available');
 
   const { sleepStartTime, sleepEndTime, workStartTime, workEndTime } = todayRecord;
 
@@ -51,6 +99,12 @@ const mapHoursToActivities = (selectedDate, todayRecord, currentTime) => {
       return hour >= start || hour < end;
     }
   };
+
+  const now = currentTime;
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+  const currentDate = now.getDate();
+  const isToday = selectedDate.getDate() === currentDate;
 
   if (sleepStartTime != null && sleepEndTime != null) {
     for (let hour = 0; hour < 24; hour++) {
@@ -68,65 +122,28 @@ const mapHoursToActivities = (selectedDate, todayRecord, currentTime) => {
     }
   }
 
-  const now = currentTime;
-  const currentHour = now.getHours();
-  const currentMinute = now.getMinutes();
-  const isPastHour = (hour) => {
-    if (hour < currentHour) return true;
-    if (hour === currentHour && currentMinute > 0) return true;
-    return false;
-  };
-
   for (let hour = 0; hour < 24; hour++) {
-    if (activities[hour] === 'Available' && isPastHour(hour)) {
-      activities[hour] = 'Other';
+    // For past days, no time should be available
+    if (!isToday) {
+      if (activities[hour] === 'Available') {
+        activities[hour] = 'Other';
+      }
+    } else {
+      // For today, mark past hours that are still "Available" as "Other"
+      if (hour < currentHour || (hour === currentHour && currentMinute > 0)) {
+        if (activities[hour] === 'Available') {
+          activities[hour] = 'Other';
+        }
+      }
     }
   }
 
   return activities;
 };
 
-// DayActivityProgressBar Component
-const DayActivityProgressBar = ({
-  sleepPercentage,
-  workPercentage,
-  otherPercentage,
-  availablePercentage,
-}) => {
-  return (
-    <div className="w-full bg-gray-200 rounded-full h-4 flex overflow-hidden">
-      <div
-        className="h-full bg-blue-500"
-        style={{ width: `${sleepPercentage}%` }}
-        title={`Sleep: ${roundHours((sleepPercentage / 100) * 24)}h`}
-      ></div>
-      <div
-        className="h-full bg-green-500"
-        style={{ width: `${workPercentage}%` }}
-        title={`Work: ${roundHours((workPercentage / 100) * 24)}h`}
-      ></div>
-      <div
-        className="h-full bg-yellow-500"
-        style={{ width: `${otherPercentage}%` }}
-        title={`Other: ${roundHours((otherPercentage / 100) * 24)}h`}
-      ></div>
-      <div
-        className="h-full bg-gray-300"
-        style={{ width: `${availablePercentage}%` }}
-        title={`Available: ${roundHours((availablePercentage / 100) * 24)}h`}
-      ></div>
-    </div>
-  );
-};
 
-DayActivityProgressBar.propTypes = {
-  sleepPercentage: PropTypes.number.isRequired,
-  workPercentage: PropTypes.number.isRequired,
-  otherPercentage: PropTypes.number.isRequired,
-  availablePercentage: PropTypes.number.isRequired,
-};
+// DayActivityProgressBar Component (imported separately)
 
-// MetricCard Component
 const MetricCard = ({ icon: Icon, title, value, subValue, color }) => (
   <div className="flex flex-col bg-white shadow-md p-4 rounded-lg w-full">
     <div className="flex items-center mb-2">
@@ -171,6 +188,8 @@ const MetricsDashboard = ({ selectedGoal, currentMonthRecords, selectedDate }) =
     workPercentage,
     otherPercentage,
     availablePercentage,
+    extraAvailableHours,
+    extraAvailablePercentage,
   } = useMemo(() => {
     const sleepHours = activities.filter((a) => a === 'Sleep').length;
     const workHours = activities.filter((a) => a === 'Work').length;
@@ -182,6 +201,49 @@ const MetricsDashboard = ({ selectedGoal, currentMonthRecords, selectedDate }) =
     const otherPercentage = (otherHours / 24) * 100;
     const availablePercentage = (availableHours / 24) * 100;
 
+    let extraAvailableHours = 0;
+    let extraAvailablePercentage = 0;
+    
+    const { sleepStartTime, workStartTime, workEndTime } = todayRecord;
+    
+    if (sleepStartTime != null && workStartTime != null) {
+      const sleepStartDateTime = new Date(selectedDate);
+      sleepStartDateTime.setHours(sleepStartTime, 0, 0, 0);
+    
+      const dayEndDateTime = new Date(sleepStartDateTime.getTime() + 24 * 60 * 60 * 1000);
+    
+      if (currentTime > dayEndDateTime) {
+        const extraTimeMs = currentTime - dayEndDateTime;
+        extraAvailableHours = extraTimeMs / (1000 * 60 * 60);
+        extraAvailableHours = Math.max(0, extraAvailableHours);
+    
+        // Additional checks based on work end time
+        if (workEndTime != null) {
+          const workEndDateTime = new Date(selectedDate);
+          workEndDateTime.setHours(workEndTime, 0, 0, 0);
+    
+          // If workEndTime is before dayEndDateTime, we need to adjust the date
+          if (workEndDateTime < sleepStartDateTime) {
+            workEndDateTime.setDate(workEndDateTime.getDate() + 1);
+          }
+    
+          if (workEndDateTime < dayEndDateTime) {
+            // Work ended before the 24-hour period ended
+            extraAvailableHours = (currentTime - dayEndDateTime) / (1000 * 60 * 60);
+          } else {
+            // Work ended after the 24-hour period
+            extraAvailableHours = (currentTime - workEndDateTime) / (1000 * 60 * 60);
+          }
+        } else {
+          // Work end time is not set
+          extraAvailableHours = (currentTime - dayEndDateTime) / (1000 * 60 * 60);
+        }
+    
+        extraAvailableHours = Math.max(0, extraAvailableHours);
+        extraAvailablePercentage = (extraAvailableHours / 24) * 100;
+      }
+    }
+    
     return {
       sleepHours,
       workHours,
@@ -191,8 +253,10 @@ const MetricsDashboard = ({ selectedGoal, currentMonthRecords, selectedDate }) =
       workPercentage,
       otherPercentage,
       availablePercentage,
+      extraAvailableHours,
+      extraAvailablePercentage,
     };
-  }, [activities]);
+  }, [activities, todayRecord, selectedDate, currentTime]);
 
   const {
     totalEarnings,
@@ -305,49 +369,57 @@ const MetricsDashboard = ({ selectedGoal, currentMonthRecords, selectedDate }) =
             color="green"
           />
           <div className="bg-white shadow-md p-4 rounded-lg col-span-1 md:col-span-2">
-  <div className="flex items-center mb-4">
-    <FiBarChart2 className="w-6 h-6 text-purple-500" />
-    <h3 className="ml-2 text-lg font-semibold text-gray-700">Today's Activities</h3>
-  </div>
-  <DayActivityProgressBar
-    sleepPercentage={sleepPercentage}
-    workPercentage={workPercentage}
-    otherPercentage={otherPercentage}
-    availablePercentage={availablePercentage}
-  />
-  <div className="flex justify-between text-sm text-gray-600 mt-4">
-    {/* Sleep */}
-    <div className="flex flex-col items-center">
-      <FaBed className="w-5 h-5 text-blue-500 mb-1" />
-      <span className="font-medium">Sleep</span>
-      <span className="text-xs font-semibold text-blue-500">{roundHours(sleepHours)}h</span>
-    </div>
-    {/* Work */}
-    <div className="flex flex-col items-center">
-      <FaLaptop className="w-5 h-5 text-green-500 mb-1" />
-      <span className="font-medium">Work</span>
-      <span className="text-xs font-semibold text-green-500">{roundHours(workHours)}h</span>
-    </div>
-    {/* Other */}
-    <div className="flex flex-col items-center">
-      <FaUserClock className="w-5 h-5 text-yellow-500 mb-1" />
-      <span className="font-medium">Other</span>
-      <span className="text-xs font-semibold text-yellow-500">{roundHours(otherHours)}h</span>
-    </div>
-    {/* Available */}
-    <div className="flex flex-col items-center">
-      <FaQuestion className="w-5 h-5 text-gray-500 mb-1" />
-      <span className="font-medium">Available</span>
-      <span className="text-xs font-semibold text-gray-500">{roundHours(availableHours)}h</span>
-    </div>
-  </div>
-</div>
-
+            <div className="flex items-center mb-4">
+              <FiBarChart2 className="w-6 h-6 text-purple-500" />
+              <h3 className="ml-2 text-lg font-semibold text-gray-700">Today's Activities</h3>
+            </div>
+            <DayActivityProgressBar
+              sleepPercentage={sleepPercentage}
+              workPercentage={workPercentage}
+              otherPercentage={otherPercentage}
+              availablePercentage={availablePercentage}
+              extraAvailablePercentage={extraAvailablePercentage} // New
+            />
+            <div className="flex justify-between text-sm text-gray-600 mt-4">
+              {/* Sleep */}
+              <div className="flex flex-col items-center">
+                <FaBed className="w-5 h-5 text-blue-500 mb-1" />
+                <span className="font-medium">Sleep</span>
+                <span className="text-xs font-semibold text-blue-500">{roundHours(sleepHours)}h</span>
+              </div>
+              {/* Work */}
+              <div className="flex flex-col items-center">
+                <FaLaptop className="w-5 h-5 text-green-500 mb-1" />
+                <span className="font-medium">Work</span>
+                <span className="text-xs font-semibold text-green-500">{roundHours(workHours)}h</span>
+              </div>
+              {/* Other */}
+              <div className="flex flex-col items-center">
+                <FaUserClock className="w-5 h-5 text-yellow-500 mb-1" />
+                <span className="font-medium">Other</span>
+                <span className="text-xs font-semibold text-yellow-500">{roundHours(otherHours)}h</span>
+              </div>
+              {/* Available */}
+              <div className="flex flex-col items-center">
+                <FaQuestion className="w-5 h-5 text-gray-500 mb-1" />
+                <span className="font-medium">Available</span>
+                <span className="text-xs font-semibold text-gray-500">{roundHours(availableHours)}h</span>
+              </div>
+              {/* Extra Available */}
+              {extraAvailableHours > 0 && (
+                <div className="flex flex-col items-center">
+                  <FaQuestion className="w-5 h-5 text-red-500 mb-1" />
+                  <span className="font-medium">Extra Available</span>
+                  <span className="text-xs font-semibold text-red-500">+{roundHours(extraAvailableHours)}h</span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Month Overview Section */}
-      <section>
+ {/* Month Overview Section */}
+ <section>
         <h2 className="text-2xl font-bold mb-6 border-b pb-2 text-gray-600">
           {selectedDate.toLocaleString('default', { month: 'long', year: 'numeric' })} Overview
         </h2>
@@ -427,7 +499,7 @@ const MetricsDashboard = ({ selectedGoal, currentMonthRecords, selectedDate }) =
         </p>
       </div>
     </div>
-    </div>
+        </div>
   );
 };
 
