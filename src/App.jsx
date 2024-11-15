@@ -6,9 +6,13 @@ import 'tippy.js/dist/tippy.css';
 import { Chart } from 'react-chartjs-2';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, LineController, BarController } from 'chart.js';
-import { FiBriefcase, FiDollarSign, FiMinus, FiPlus, FiChevronLeft, FiChevronRight, FiClock, FiCreditCard, FiTarget } from 'react-icons/fi';
+import { FiBriefcase, FiDollarSign, FiMinus, FiPlus, FiChevronLeft, FiChevronRight, FiClock, FiCreditCard, FiTarget, FiUser, FiLogIn, FiLogOut } from 'react-icons/fi';
 import { db } from './firebase';
-import { collection, doc, getDocs, getDoc, setDoc, query, where } from 'firebase/firestore';
+import { collection, doc, getDocs, getDoc, setDoc, query, where, addDoc, writeBatch } from 'firebase/firestore';
+import { BrowserRouter, Routes, Route, useParams, useNavigate } from 'react-router-dom';
+import { signInWithPopup, signOut } from 'firebase/auth';
+import { auth, googleProvider } from './firebase';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Primary button with solid background
  const PrimaryButton = ({ children, onClick, disabled, className = '', ...props }) => (
@@ -426,7 +430,36 @@ const ActivityTracker = ({ activityData, today }) => {
     );
   };
 
-  const firstDayOfWeek = new Date(activityData[0]?.date).getDay() || 0;
+  // Generate array of all dates for the past 6 months
+  const generatePastSixMonths = () => {
+    const dates = [];
+    const endDate = new Date(today);
+    const startDate = new Date(today);
+    startDate.setMonth(startDate.getMonth() - 6);
+    
+    // Convert activityData to a map for easier lookup
+    const activityMap = new Map(
+      activityData.map(data => [data.date.toISOString().split('T')[0], data])
+    );
+
+    // Generate all dates
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dateKey = new Date(d).toISOString().split('T')[0];
+      const existingData = activityMap.get(dateKey);
+      
+      dates.push({
+        date: new Date(d),
+        earnings: existingData?.earnings || 0,
+        dailyGoal: existingData?.dailyGoal || 0,
+        percentage: existingData?.percentage || 0
+      });
+    }
+
+    return dates;
+  };
+
+  const allDates = generatePastSixMonths();
+  const firstDayOfWeek = allDates[0].date.getDay();
 
   return (
     <div className="px-4">
@@ -434,12 +467,13 @@ const ActivityTracker = ({ activityData, today }) => {
         <div className="flex flex-wrap gap-1 max-w-[728px]">
           {/* Fill the empty squares for the first week */}
           {[...Array(firstDayOfWeek)].map((_, index) => (
-            <div key={`empty-earnings-${index}`} className="w-4 h-4"></div>
+            <div key={`empty-${index}`} className="w-4 h-4"></div>
           ))}
-          {/* Render the activity squares */}
-          {activityData.slice(-182).map((data, index) => (
+          
+          {/* Render all squares */}
+          {allDates.map((data) => (
             <Tippy
-              key={`earnings-${data.date.toISOString()}`}
+              key={data.date.toISOString()}
               content={getTooltipContent(data.date, data.earnings, data.dailyGoal)}
               allowHTML={true}
             >
@@ -459,7 +493,6 @@ const MetricsDashboard = ({ selectedGoal, currentMonthRecords, selectedDate, act
   const {
     totalEarnings,
     averageEarningsPerDay,
-    averageEarningsPerHour,
     remainingDays,
     dailyPace,
   } = useMemo(() => {
@@ -470,11 +503,7 @@ const MetricsDashboard = ({ selectedGoal, currentMonthRecords, selectedDate, act
     const records = Object.values(currentMonthRecords);
     const totalEarnings = records.reduce((sum, rec) => sum + (rec.earnings || 0), 0);
 
-    // Calculate average earnings per day
     const averageEarningsPerDay = daysPassed ? totalEarnings / daysPassed : 0;
-
-    // Calculate average earnings per hour based on 8-hour workday
-    const averageEarningsPerHour = averageEarningsPerDay / 8;
 
     const remainingDays = daysInMonth - daysPassed;
     const remainingGoal = selectedGoal - totalEarnings;
@@ -483,7 +512,6 @@ const MetricsDashboard = ({ selectedGoal, currentMonthRecords, selectedDate, act
     return {
       totalEarnings,
       averageEarningsPerDay,
-      averageEarningsPerHour,
       remainingDays,
       dailyPace,
     };
@@ -539,12 +567,7 @@ const MetricsDashboard = ({ selectedGoal, currentMonthRecords, selectedDate, act
   );
 };
 
-// Add this new Card component near the top with other components
-const Card = ({ children, className = '' }) => (
-  <div className={`bg-white rounded-2xl p-8 shadow-sm ${className}`}>
-    {children}
-  </div>
-);
+
 
 // 1. Primary Sections - More subtle headers
 const MainDashboard = ({ selectedGoal, onGoalChange, loading }) => (
@@ -657,393 +680,524 @@ const MetricsLoadingPlaceholder = () => (
   </div>
 );
 
-// Main App - Simplified hero section
-const App = () => {
-  const userId = 'defaultUser'; // Replace with actual user ID in production
+// Add this helper function to aggregate weekly data
+const aggregateWeeklyData = (records) => {
+  const weeks = {};
+  
+  Object.entries(records || {}).forEach(([dateStr, data]) => {
+    const date = new Date(dateStr);
+    const year = date.getFullYear();
+    const currentYear = new Date().getFullYear();
+    
+    // Only process current year's data
+    if (year === currentYear) {
+      // Get week number (1-52)
+      const weekNum = Math.ceil((date - new Date(year, 0, 1)) / (7 * 24 * 60 * 60 * 1000));
+      weeks[weekNum] = (weeks[weekNum] || 0) + (data.earnings || 0);
+    }
+  });
 
-  // Memoize Firestore references to prevent useEffect from triggering infinitely
-  const recordsCollection = useMemo(
-    () => collection(db, 'users', userId, 'records'),
-    [userId]
+  // Convert to array of 52 weeks, filling missing weeks with 0
+  return Array.from({ length: 52 }, (_, i) => weeks[i + 1] || 0);
+};
+
+// Modify ProfileCard to use aggregated data
+const ProfileCard = ({ profile, isOwnProfile }) => {
+  const navigate = useNavigate();
+  
+  // Generate last 7 months of labels
+  const getLastSevenMonths = () => {
+    const months = [];
+    const today = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      months.push(date.toLocaleString('default', { month: 'short' }));
+    }
+    return months;
+  };
+
+  // Prepare chart data for the last 7 months
+  const monthlyData = useMemo(() => {
+    const aggregates = profile.aggregates?.monthly || {};
+    const today = new Date();
+    const data = [];
+    
+    for (let i = 6; i >= 0; i--) {
+      const monthIndex = (today.getMonth() - i + 12) % 12;
+      // Convert to thousands
+      data.push((aggregates[monthIndex] || 0) / 1000);
+    }
+    
+    return data;
+  }, [profile.aggregates]);
+
+  const chartData = {
+    labels: getLastSevenMonths(),
+    datasets: [{
+      data: monthlyData,
+      borderColor: '#FF9F1C',
+      borderWidth: 2,
+      backgroundColor: 'rgba(255, 159, 28, 0.1)',
+      fill: true,
+      tension: 0.4,
+      pointRadius: 0,
+      pointHoverRadius: 0,
+    }]
+  };
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+      mode: 'index',
+      intersect: false,
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: { 
+        enabled: true,
+        callbacks: {
+          label: (context) => `$${context.raw}k`
+        }
+      },
+      datalabels: {
+        display: false
+      }
+    },
+    scales: {
+      x: {
+        border: { display: false },
+        grid: { display: false },
+        ticks: {
+          font: { size: 11 },
+          color: '#999',
+          padding: 8
+        }
+      },
+      y: {
+        border: { display: false },
+        position: 'left',
+        grid: { display: false },
+        beginAtZero: true,
+        ticks: {
+          font: { size: 11 },
+          color: '#999',
+          padding: 8,
+          callback: value => `$${value}k`
+        }
+      }
+    }
+  };
+
+  // Format the monthly average to handle no data
+  const formatMonthlyAverage = (average) => {
+    if (!average || isNaN(average)) return '$0';
+    return `$${(average / 1000).toFixed(1)}k`;
+  };
+
+  return (
+    <div 
+      onClick={() => navigate(`/${encodeURIComponent(profile.name)}`)}
+      className="bg-white rounded-3xl p-6 hover:shadow-md transition-all 
+                 duration-300 cursor-pointer border border-gray-100"
+    >
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center space-x-3">
+          <div className="p-2 bg-orange-50 rounded-xl">
+            <FiUser className="w-5 h-5 text-orange-500" />
+          </div>
+          <div>
+            <h3 className="text-lg font-medium text-gray-900">
+              {profile.name}
+            </h3>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {profile.tagline || "Track your income progress"}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center bg-blue-50 px-3 py-1 rounded-full">
+          <FiCreditCard className="w-4 h-4 text-blue-500 mr-1.5" />
+          <span className="text-sm font-medium text-blue-600">
+            {formatMonthlyAverage(profile.monthlyAverage)}
+          </span>
+          <span className="text-sm text-blue-400 ml-0.5">/mo</span>
+        </div>
+      </div>
+
+      <div className="h-36">
+        <Chart type="line" data={chartData} options={chartOptions} />
+      </div>
+    </div>
   );
+};
 
-  // **Reference to monthlyGoals collection**
-  const monthlyGoalsCollection = useMemo(
-    () => collection(db, 'users', userId, 'monthlyGoals'),
-    [userId]
+// Modify ProfileSelection to only fetch necessary data
+const ProfileSelection = () => {
+  const [profiles, setProfiles] = useState([]);
+  const { currentUser } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      try {
+        const profilesCollection = collection(db, 'profiles');
+        const snapshot = await getDocs(profilesCollection);
+        
+        const profilesData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        
+        setProfiles(profilesData);
+      } catch (error) {
+        console.error('Error fetching profiles:', error);
+      }
+    };
+
+    fetchProfiles();
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-white">
+      <header className="pt-24 pb-16 px-6">
+        <div className="max-w-5xl mx-auto text-center">
+          <h1 className="text-5xl font-semibold text-gray-900 tracking-tight mb-6">
+            Track Together
+          </h1>
+          <p className="text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
+            Monitor your freelance income alongside a community of independent professionals. 
+            Share progress, stay motivated, and grow together.
+          </p>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto px-6 py-12">
+        {/* Profiles Grid */}
+        {profiles.length > 0 && (
+          <div className="space-y-8">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-semibold text-gray-900">Community</h2>
+              <span className="text-sm text-gray-500">{profiles.length} active members</span>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {profiles
+                .sort((a, b) => {
+                  // Sort user's profile first if logged in
+                  if (currentUser) {
+                    if (a.userId === currentUser.uid) return -1;
+                    if (b.userId === currentUser.uid) return 1;
+                  }
+                  return 0;
+                })
+                .map(profile => (
+                  <ProfileCard
+                    key={profile.id}
+                    profile={profile}
+                    isOwnProfile={currentUser && profile.userId === currentUser.uid}
+                  />
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {profiles.length === 0 && (
+          <div className="text-center py-16">
+            <div className="inline-flex items-center justify-center w-16 h-16 
+                          bg-blue-50 rounded-full mb-6">
+              <FiUser className="w-8 h-8 text-blue-500" />
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              Be the first to join
+            </h3>
+            <p className="text-gray-500 max-w-sm mx-auto">
+              Sign in to start tracking your freelance journey
+            </p>
+          </div>
+        )}
+      </main>
+    </div>
   );
+};
 
+// Modify the Dashboard component to use URL params
+const Dashboard = () => {
+  const { profileName } = useParams();
+  const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  
+  const [userId, setUserId] = useState(null);
+  const [isOwner, setIsOwner] = useState(false);
+  const [selectedGoal, setSelectedGoal] = useState(10000);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [currentMonthRecords, setCurrentMonthRecords] = useState({});
+  const [isAccumulatedView, setIsAccumulatedView] = useState(false);
   const [loading, setLoading] = useState({
     goal: true,
     records: true,
-    pastYear: true,
+    pastYear: true
   });
-
-  const [currentMonthRecords, setCurrentMonthRecords] = useState({});
-  const [pastYearRecords, setPastYearRecords] = useState({});
+  const [activityData, setActivityData] = useState([]);
   const [chartData, setChartData] = useState({
-    earnings: [],
-    projectsCount: [],
     labels: [],
+    earnings: [],
+    projectsCount: []
   });
   const [goalLineDaily, setGoalLineDaily] = useState([]);
   const [goalLineAccumulated, setGoalLineAccumulated] = useState([]);
-  const [isAccumulatedView, setIsAccumulatedView] = useState(true);
-  const [selectedGoal, setSelectedGoal] = useState(5000);
-  const [activityData, setActivityData] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  // Helper function to format date key using local time
-  const formatDateKey = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`; // 'YYYY-MM-DD'
-  };
-
-  // Helper function to format month key
-  const formatMonthKey = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0'); // 'MM'
-    return `${year}-${month}`; // 'YYYY-MM'
-  };
-
-  // Helper function to get number of days in a month for a given date
-  const getDaysInMonth = (date) => {
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-  };
-
-  // Helper function to calculate the start date (today - 365 days)
-  const getStartDate = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const pastYear = new Date(today);
-    pastYear.setDate(today.getDate() - 364); // Including today
-    return pastYear;
-  };
-
-  // **Fetch selectedGoal for the current month from Firestore on mount and when selectedDate changes**
+  // Effect to fetch profile and check ownership
   useEffect(() => {
-    const fetchMonthlyGoal = async () => {
-      setLoading(prev => ({ ...prev, goal: true }));
-      const monthKey = formatMonthKey(selectedDate);
-      const monthlyGoalDocRef = doc(monthlyGoalsCollection, monthKey);
-
+    const fetchProfile = async () => {
       try {
-        const monthlyGoalDoc = await getDoc(monthlyGoalDocRef);
-        if (monthlyGoalDoc.exists()) {
-          const data = monthlyGoalDoc.data();
-          if (data.selectedGoal) {
-            setSelectedGoal(data.selectedGoal);
-          } else {
-            // If selectedGoal doesn't exist, set to default
-            setSelectedGoal(5000);
-          }
-        } else {
-          // If monthly goal document doesn't exist, create it with default selectedGoal
-          await setDoc(monthlyGoalDocRef, { selectedGoal: 5000 });
-          console.log(`Monthly goal document created for ${monthKey} with selectedGoal: 5000`);
-          setSelectedGoal(5000);
+        const profilesCollection = collection(db, 'profiles');
+        const q = query(profilesCollection, where('name', '==', profileName));
+        const snapshot = await getDocs(q);
+        
+        if (snapshot.empty) {
+          navigate('/');
+          return;
         }
+
+        const profileData = snapshot.docs[0].data();
+        setUserId(snapshot.docs[0].id);
+        
+        // Check if current user owns this profile
+        setIsOwner(currentUser && profileData.userId === currentUser.uid);
+        
+        // Continue with your existing data fetching...
+        setLoading({
+          goal: false,
+          records: false,
+          pastYear: false
+        });
       } catch (error) {
-        console.error(`Failed to fetch selectedGoal for ${monthKey}:`, error);
-        setSelectedGoal(5000); // Fallback to default
-      } finally {
-        setLoading(prev => ({ ...prev, goal: false, initialLoad: false }));
+        console.error('Error fetching profile:', error);
+        navigate('/');
       }
     };
 
-    fetchMonthlyGoal();
-  }, [selectedDate, monthlyGoalsCollection]);
+    fetchProfile();
+  }, [profileName, currentUser, navigate]);
 
-  // **Save selectedGoal to Firestore whenever it changes, but not on initial load**
+  // Effect to fetch user data and past year records
   useEffect(() => {
-    const saveMonthlyGoal = async () => {
-      const monthKey = formatMonthKey(selectedDate);
-      const monthlyGoalDocRef = doc(monthlyGoalsCollection, monthKey);
+    const fetchUserData = async () => {
+      if (!userId) return;
 
       try {
-        const monthlyGoalDoc = await getDoc(monthlyGoalDocRef);
-        if (monthlyGoalDoc.exists()) {
-          const data = monthlyGoalDoc.data();
-          if (data.selectedGoal !== selectedGoal) {
-            await setDoc(monthlyGoalDocRef, { selectedGoal }, { merge: true });
-            console.log(`Selected goal for ${monthKey} saved:`, selectedGoal);
-          } else {
-            console.log(`Selected goal for ${monthKey} is already up-to-date.`);
-          }
+        const userDoc = await getDoc(doc(db, 'users', userId));
+        
+        if (!userDoc.exists()) {
+          await setDoc(doc(db, 'users', userId), {
+            monthlyGoal: 10000,
+            records: {},
+            createdAt: new Date().toISOString()
+          });
+          setSelectedGoal(10000);
         } else {
-          // If monthly goal document doesn't exist, create it with selectedGoal
-          await setDoc(monthlyGoalDocRef, { selectedGoal }, { merge: true });
-          console.log(`Monthly goal document created for ${monthKey} with selectedGoal:`, selectedGoal);
+          setSelectedGoal(userDoc.data().monthlyGoal || 10000);
+          setCurrentMonthRecords(userDoc.data().records || {});
         }
-      } catch (error) {
-        console.error(`Failed to save selectedGoal for ${monthKey}:`, error);
-      }
-    };
 
-    // **Only save if selectedGoal is defined, valid, and not during initial load**
-    if (selectedGoal && !isInitialLoad) {
-      saveMonthlyGoal();
-    }
-  }, [selectedGoal, selectedDate, monthlyGoalsCollection, isInitialLoad]); // **Added isInitialLoad to dependencies**
+        // Calculate past year data
+        const today = new Date();
+        const pastYear = new Date(today);
+        pastYear.setFullYear(today.getFullYear() - 1);
 
-  // **Load data for the current month**
-  useEffect(() => {
-    const loadCurrentMonthRecords = async () => {
-      setLoading(prev => ({ ...prev, records: true }));
-      const year = selectedDate.getFullYear();
-      const month = selectedDate.getMonth() + 1; // 1-12
-
-      try {
-        const q = query(
-          recordsCollection,
-          where('year', '==', year),
-          where('month', '==', month)
-        );
-        const querySnapshot = await getDocs(q);
-        const records = {};
-        querySnapshot.forEach((docSnap) => {
-          records[docSnap.id] = docSnap.data();
+        const records = userDoc.data().records || {};
+        const sortedDates = Object.keys(records).sort();
+        
+        // Prepare chart data
+        const chartLabels = [];
+        const chartEarnings = [];
+        const chartProjects = [];
+        
+        sortedDates.forEach(date => {
+          chartLabels.push(new Date(date).toLocaleDateString());
+          chartEarnings.push(records[date]?.earnings || 0);
+          chartProjects.push(records[date]?.projectsCount || 0);
         });
-        setCurrentMonthRecords(records);
-        console.log(`Loaded current month data for ${year}-${month}:`, records);
-      } catch (error) {
-        console.error('Failed to load current month records:', error);
-        setCurrentMonthRecords({});
-      } finally {
-        setLoading(prev => ({ ...prev, records: false }));
-      }
-    };
 
-    loadCurrentMonthRecords();
-  }, [selectedDate, recordsCollection]);
-
-  // **Load data for the past year**
-  useEffect(() => {
-    const loadPastYearRecords = async () => {
-      setLoading(prev => ({ ...prev, pastYear: true }));
-      const startDate = getStartDate();
-      const endDate = new Date();
-      endDate.setHours(0, 0, 0, 0);
-
-      const startDateKey = formatDateKey(startDate);
-      const endDateKey = formatDateKey(endDate);
-
-      try {
-        const q = query(
-          recordsCollection,
-          where('date', '>=', startDateKey),
-          where('date', '<=', endDateKey)
-        );
-        const querySnapshot = await getDocs(q);
-        const records = {};
-        querySnapshot.forEach((docSnap) => {
-          records[docSnap.id] = docSnap.data();
+        setChartData({
+          labels: chartLabels,
+          earnings: chartEarnings,
+          projectsCount: chartProjects
         });
-        setPastYearRecords(records);
-        console.log(
-          `Loaded past year data from ${startDateKey} to ${endDateKey}:`,
-          records
-        );
+
+        // Calculate goal lines
+        const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+        const dailyGoal = selectedGoal / daysInMonth;
+        
+        setGoalLineDaily(chartLabels.map(() => dailyGoal));
+        
+        let accumulated = 0;
+        setGoalLineAccumulated(chartLabels.map((_, index) => {
+          accumulated += dailyGoal;
+          return accumulated;
+        }));
+
+        // Prepare activity data
+        const activityDataArray = sortedDates.map(date => ({
+          date: new Date(date),
+          earnings: records[date]?.earnings || 0,
+          dailyGoal: dailyGoal,
+          percentage: ((records[date]?.earnings || 0) / dailyGoal) * 100
+        }));
+
+        setActivityData(activityDataArray);
+        
+        // Update loading states
+        setLoading(prev => ({
+          ...prev,
+          goal: false,
+          records: false,
+          pastYear: false
+        }));
       } catch (error) {
-        console.error('Failed to load past year records:', error);
-        setPastYearRecords({});
-      } finally {
-        setLoading(prev => ({ ...prev, pastYear: false }));
+        console.error('Error fetching user data:', error);
+        setLoading(prev => ({
+          ...prev,
+          goal: false,
+          records: false,
+          pastYear: false
+        }));
       }
     };
 
-    loadPastYearRecords();
-  }, [recordsCollection]);
+    fetchUserData();
+  }, [userId, selectedGoal]); // Added selectedGoal as dependency
 
-  // **Update chart data and activity data whenever dependencies change**
-  useEffect(() => {
-    if (loading.records || loading.pastYear) return;
-    updateChartData();
-    updateActivityData();
-  }, [
-    currentMonthRecords,
-    pastYearRecords,
-    selectedDate,
-    selectedGoal,
-    isAccumulatedView,
-    loading.records,
-    loading.pastYear,
-  ]);
-
-  const updateChartData = () => {
-    const year = selectedDate.getFullYear();
-    const month = selectedDate.getMonth();
-    const daysInMonth = getDaysInMonth(selectedDate);
-
-    const labels = Array.from({ length: daysInMonth }, (_, i) =>
-      (i + 1).toString()
-    );
-    const earnings = [];
-    const projectsCount = [];
-
-    let accumulatedEarnings = [];
-    let totalEarnings = 0;
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(year, month, day);
-      const dateKey = formatDateKey(date);
-      const isPastDay = date < today;
-      const record = currentMonthRecords[dateKey] || {};
-
-      // Earnings
-      const earning = isPastDay && (record.earnings === undefined || record.earnings === null)
-        ? 0
-        : record.earnings || null;
-      totalEarnings += earning || 0;
-      earnings.push(earning !== undefined && earning !== null ? earning : isPastDay ? 0 : null);
-      accumulatedEarnings.push(totalEarnings);
-
-      // Won Projects
-      const projects = isPastDay && (record.projectsCount === undefined || record.projectsCount === null)
-        ? 0
-        : record.projectsCount || null;
-      projectsCount.push(projects !== undefined && projects !== null ? projects : isPastDay ? 0 : null);
+  // Handler functions
+  const handleGoalChange = async (e) => {
+    if (!userId) return;
+    const newGoal = parseInt(e.target.value);
+    setSelectedGoal(newGoal);
+    try {
+      await setDoc(doc(db, 'users', userId), { monthlyGoal: newGoal }, { merge: true });
+    } catch (error) {
+      console.error('Error updating goal:', error);
     }
-
-    // Update goal lines
-    const dailyGoal = selectedGoal / daysInMonth;
-    setGoalLineDaily(new Array(daysInMonth).fill(dailyGoal));
-    setGoalLineAccumulated(labels.map((_, index) => dailyGoal * (index + 1)));
-
-    setChartData({
-      earnings: isAccumulatedView ? accumulatedEarnings : earnings,
-      projectsCount,
-      labels,
-    });
   };
 
-  // **Compute Activity Data**
-  const updateActivityData = () => {
-    const today = new Date();
-    const dates = getLastYearDates(today);
-    const data = dates.map((date) => {
-      const dateKey = formatDateKey(date);
-      const record = pastYearRecords[dateKey] || {};
-      const earnings = record.earnings || 0;
-      const dailyGoal =
-        record.dailyGoal || selectedGoal / getDaysInMonth(date);
-      const percentage = dailyGoal > 0 ? (earnings / dailyGoal) * 100 : 0;
-      return {
-        date,
-        earnings,
-        dailyGoal,
-        percentage,
+  // Add this function to aggregate data when saving records
+  const handleDataChange = async (date, updates) => {
+    if (!userId) return;
+    const dateKey = date.toISOString().split('T')[0];
+    
+    try {
+      // Update records in users collection
+      const updatedRecords = {
+        ...currentMonthRecords,
+        [dateKey]: {
+          ...(currentMonthRecords[dateKey] || {}),
+          ...updates
+        }
       };
-    });
-    setActivityData(data);
-  };
+      setCurrentMonthRecords(updatedRecords);
 
-  // Helper function to get the last 365 dates
-  const getLastYearDates = (today) => {
-    const dates = [];
-    for (let i = 364; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(today.getDate() - i);
-      dates.push(date);
+      // Calculate weekly and monthly aggregates
+      const weekNum = Math.ceil((date - new Date(date.getFullYear(), 0, 1)) / (7 * 24 * 60 * 60 * 1000));
+      const monthNum = date.getMonth();
+      
+      // Get profile reference
+      const profileRef = doc(db, 'profiles', userId);
+      const profileDoc = await getDoc(profileRef);
+      const currentAggregates = profileDoc.data().aggregates || {
+        weekly: {},
+        monthly: {}
+      };
+
+      // Update weekly aggregate
+      currentAggregates.weekly[weekNum] = (currentAggregates.weekly[weekNum] || 0) + 
+        (updates.earnings - (currentMonthRecords[dateKey]?.earnings || 0));
+
+      // Update monthly aggregate
+      currentAggregates.monthly[monthNum] = (currentAggregates.monthly[monthNum] || 0) + 
+        (updates.earnings - (currentMonthRecords[dateKey]?.earnings || 0));
+
+      // Batch write to both collections
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'users', userId), {
+        records: updatedRecords
+      });
+      batch.update(profileRef, {
+        aggregates: currentAggregates,
+        monthlyAverage: Object.values(currentAggregates.monthly).reduce((sum, val) => sum + val, 0) / 
+          Object.keys(currentAggregates.monthly).length
+      });
+      
+      await batch.commit();
+
+      // Calculate daily goal
+      const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+      const dailyGoal = selectedGoal / daysInMonth;
+
+      // Update activity data immediately
+      setActivityData(prev => {
+        const dateStr = date.toISOString().split('T')[0];
+        return prev.map(activity => {
+          if (activity.date.toISOString().split('T')[0] === dateStr) {
+            return {
+              ...activity,
+              earnings: updates.earnings || activity.earnings,
+              dailyGoal,
+              percentage: ((updates.earnings || activity.earnings) / dailyGoal) * 100
+            };
+          }
+          return activity;
+        });
+      });
+
+      await setDoc(doc(db, 'users', userId), {
+        records: updatedRecords
+      }, { merge: true });
+    } catch (error) {
+      console.error('Error updating records:', error);
     }
-    return dates;
   };
 
-  const handleGoalChange = (event) => {
-    const newGoal = parseInt(event.target.value);
-    setSelectedGoal(newGoal); // Optimistically update the UI
+  const getRecordForSelectedDate = () => {
+    const dateKey = selectedDate.toISOString().split('T')[0];
+    return currentMonthRecords[dateKey] || {};
   };
 
   const toggleChartView = () => {
     setIsAccumulatedView(!isAccumulatedView);
   };
 
-  // **Handle Data Changes from DayInput**
-  const handleDataChange = useCallback(async (date, data) => {
-    const key = formatDateKey(date);
-    const daysInMonth = getDaysInMonth(date);
-    const dailyGoal = selectedGoal / daysInMonth;
-
-    // Only include work-related fields
-    const recordData = {
-      ...data,
-      date: key,
-      year: date.getFullYear(),
-      month: date.getMonth() + 1,
-      dailyGoal,
-    };
-
-    // Optimistically update currentMonthRecords state
-    setCurrentMonthRecords((prevRecords) => ({
-      ...prevRecords,
-      [key]: {
-        ...prevRecords[key],
-        ...recordData,
-      },
-    }));
-
-    // Update pastYearRecords if the date is within the past year
-    const startDate = getStartDate();
-    if (date >= startDate && date <= new Date()) {
-      setPastYearRecords((prevRecords) => ({
-        ...prevRecords,
-        [key]: {
-          ...prevRecords[key],
-          ...recordData,
-        },
-      }));
-    }
-
-    // Debounce Firebase writes
-    if (handleDataChange.debounceTimeout) {
-      clearTimeout(handleDataChange.debounceTimeout);
-    }
-
-    handleDataChange.debounceTimeout = setTimeout(async () => {
-      try {
-        const recordDocRef = doc(recordsCollection, key);
-        await setDoc(recordDocRef, recordData, { merge: true });
-        console.log(`Saved record for ${key}:`, recordData);
-      } catch (error) {
-        console.error(`Failed to save record for ${key}:`, error);
-      }
-    }, 500);
-  }, [recordsCollection, selectedGoal]);
-
-  const getRecordForSelectedDate = () => {
-    const dateKey = formatDateKey(selectedDate);
-    return currentMonthRecords[dateKey] || {};
-  };
+  if (!userId) {
+    return <div className="flex items-center justify-center min-h-screen">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+    </div>;
+  }
 
   return (
     <div className="min-h-screen bg-[#FBFBFD]">
-      {/* Hero Section - More focused messaging */}
       <header className="pt-16 pb-12 border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-6">
           <h1 className="text-3xl font-semibold text-gray-900 tracking-tight">
-            Income Tracker
+            {profileName}'s Dashboard
           </h1>
           <p className="text-base text-gray-500 mt-2 tracking-tight">
-            Track your earnings. Meet your goals.
+            {isOwner ? 'Manage your income and track your progress.' : 'View income progress.'}
           </p>
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-6xl mx-auto px-6 py-12">
-        <MainDashboard 
-          selectedGoal={selectedGoal}
-          onGoalChange={handleGoalChange}
-          loading={loading}
-        />
+        {/* Only show MainDashboard if owner */}
+        {isOwner && (
+          <MainDashboard 
+            selectedGoal={selectedGoal}
+            onGoalChange={handleGoalChange}
+            loading={loading}
+          />
+        )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+        {/* Only show DailySection if owner */}
+        {isOwner && (
           <DailySection 
             loading={loading}
             selectedDate={selectedDate}
@@ -1051,7 +1205,10 @@ const App = () => {
             onDataChange={handleDataChange}
             record={getRecordForSelectedDate()}
           />
+        )}
 
+        {/* Always show MetricsSection and ProgressSection */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           <MetricsSection 
             loading={loading}
             metrics={{
@@ -1075,6 +1232,116 @@ const App = () => {
         </div>
       </main>
     </div>
+  );
+};
+
+// Define Header component before App
+const Header = () => {
+  const { currentUser } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogin = async () => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      
+      // Check if profile already exists for this user
+      const profilesCollection = collection(db, 'profiles');
+      const q = query(profilesCollection, where('userId', '==', user.uid));
+      const snapshot = await getDocs(q);
+      
+      if (snapshot.empty) {
+        // Create new profile using user's display name
+        const newProfileRef = await addDoc(profilesCollection, {
+          name: user.displayName,
+          createdAt: new Date().toISOString(),
+          userId: user.uid,
+          aggregates: {
+            weekly: {},
+            monthly: {}
+          },
+          monthlyAverage: 0
+        });
+
+        // Create corresponding user document
+        await setDoc(doc(db, 'users', newProfileRef.id), {
+          monthlyGoal: 10000,
+          records: {},
+          createdAt: new Date().toISOString(),
+          userId: user.uid
+        });
+
+        // Navigate to new profile
+        navigate(`/${encodeURIComponent(user.displayName)}`);
+      } else {
+        // Navigate to existing profile
+        const profileData = snapshot.docs[0].data();
+        navigate(`/${encodeURIComponent(profileData.name)}`);
+      }
+    } catch (error) {
+      console.error('Login Error:', error);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate('/');
+    } catch (error) {
+      console.error('Logout Error:', error);
+    }
+  };
+
+  return (
+    <header className="bg-white border-b border-gray-100">
+      <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <h1 className="text-2xl font-semibold text-gray-900">
+            Income Tracker
+          </h1>
+        </div>
+        {currentUser ? (
+          <div className="flex items-center space-x-4">
+            <div className="text-sm">
+              <span className="text-gray-500">Signed in as</span>{' '}
+              <span className="font-medium text-gray-900">{currentUser.displayName}</span>
+            </div>
+            <SecondaryButton
+              onClick={handleLogout}
+              className="flex items-center space-x-2"
+            >
+              <FiLogOut className="w-4 h-4" />
+              <span>Sign Out</span>
+            </SecondaryButton>
+          </div>
+        ) : (
+          <PrimaryButton
+            onClick={handleLogin}
+            className="flex items-center space-x-2"
+          >
+            <FiLogIn className="w-4 h-4" />
+            <span>Sign in with Google</span>
+          </PrimaryButton>
+        )}
+      </div>
+    </header>
+  );
+};
+
+// Then define App component
+const App = () => {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <div className="min-h-screen bg-[#FBFBFD]">
+          <Header />
+          <Routes>
+            <Route path="/" element={<ProfileSelection />} />
+            <Route path="/:profileName" element={<Dashboard />} />
+          </Routes>
+        </div>
+      </BrowserRouter>
+    </AuthProvider>
   );
 };
 
