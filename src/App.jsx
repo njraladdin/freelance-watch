@@ -244,7 +244,7 @@ const DailySection = ({
   };
 
   return (
-    <section className="bg-white rounded-3xl p-8 shadow-sm">
+    <section className="bg-white rounded-3xl p-4 sm:p-8 shadow-sm">
       <h2 className="text-lg font-medium text-gray-600 mb-8">Today's Progress</h2>
       {loading ? (
         <LoadingPlaceholder />
@@ -487,7 +487,7 @@ const MetricsDashboard = ({ selectedGoal, currentMonthRecords, selectedDate, act
 
 // 2. Secondary Sections - Simplified headers
 const MetricsSection = ({ loading, metrics, activityData, className = '' }) => (
-  <section className={`bg-white rounded-3xl p-8 shadow-sm ${className}`}>
+  <section className={`bg-white rounded-3xl p-4 sm:p-8 shadow-sm ${className}`}>
     <h2 className="text-lg font-medium text-gray-600 mb-8">Monthly Overview</h2>
     {loading ? (
       <MetricsLoadingPlaceholder />
@@ -497,18 +497,34 @@ const MetricsSection = ({ loading, metrics, activityData, className = '' }) => (
   </section>
 );
 
-const ProgressSection = ({ loading, chartData, className = '' }) => (
-  <section className={`col-span-1 lg:col-span-2 bg-white rounded-3xl p-8 shadow-sm ${className}`}>
-    <h2 className="text-lg font-medium text-gray-600 mb-8">Earnings Progress</h2>
-    {loading ? (
-      <ChartLoadingPlaceholder />
-    ) : (
-      <ProgressChart
-        chartData={chartData}
-      />
-    )}
-  </section>
-);
+const ProgressSection = ({ loading, chartData, className = '', selectedGoal, selectedDate }) => {
+  // Calculate goal line data for all days in the month
+  const daysInMonth = new Date(
+    selectedDate.getFullYear(),
+    selectedDate.getMonth() + 1,
+    0
+  ).getDate();
+  
+  const goalLineAccumulated = Array.from({ length: daysInMonth }, (_, index) => {
+    const dailyGoal = selectedGoal / daysInMonth;
+    return dailyGoal * (index + 1);
+  });
+
+  return (
+    <section className={`bg-white rounded-3xl p-4 sm:p-8 shadow-sm ${className}`}>
+      <h2 className="text-lg font-medium text-gray-600 mb-8">Earnings Progress</h2>
+      {loading ? (
+        <ChartLoadingPlaceholder />
+      ) : (
+        <ProgressChart
+          chartData={chartData}
+          goalLineAccumulated={goalLineAccumulated}
+          selectedDate={selectedDate}
+        />
+      )}
+    </section>
+  );
+};
 
 // Loading Placeholder Components
 const Skeleton = ({ className = '', count = 1 }) => (
@@ -751,22 +767,20 @@ const Dashboard = () => {
 
   // Simplified JSX
   return (
-    <div className="bg-[#FBFBFD]">
-      <header className="p-8 border-b">
+    <div className="bg-[#FBFBFD] min-h-screen">
+      <header className="p-4 sm:p-8 border-b">
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col space-y-4">
-            {/* Profile Header */}
-            <div className="flex flex-col sm:flex-row justify-between">
+            <div className="flex flex-col sm:flex-row sm:justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-semibold">{profileName}'s Page</h1>
-                {/* Tagline section */}
                 {isEditingTagline ? (
                   <div className="flex items-center mt-2">
                     <input
                       type="text"
                       value={userData.tagline}
                       onChange={(e) => setUserData(prev => ({ ...prev, tagline: e.target.value }))}
-                      className="border rounded px-2 py-1"
+                      className="border rounded px-2 py-1 w-full sm:w-auto"
                       maxLength={50}
                     />
                     <button onClick={() => handleTaglineUpdate(userData.tagline)}>Save</button>
@@ -774,7 +788,7 @@ const Dashboard = () => {
                   </div>
                 ) : (
                   <div className="flex items-center mt-2">
-                    <p className="text-gray-500">{userData.tagline}</p>
+                    <p className="text-gray-500 text-sm sm:text-base">{userData.tagline}</p>
                     {userData.isOwner && (
                       <button onClick={() => setIsEditingTagline(true)}>
                         <FiEdit2 className="w-4 h-4 ml-2" />
@@ -784,15 +798,14 @@ const Dashboard = () => {
                 )}
               </div>
 
-              {/* Controls */}
-              <div className="flex items-center space-x-4">
+              <div className="flex flex-wrap items-center gap-4">
                 {userData.isOwner && (
-                  <div className={`${isUpdating ? 'opacity-50' : ''} transition-opacity duration-200`}>
+                  <div className={`${isUpdating ? 'opacity-50' : ''} transition-opacity duration-200 w-full sm:w-auto`}>
                     <select
                       value={userData.selectedGoal}
                       onChange={(e) => handleGoalUpdate(parseInt(e.target.value))}
                       disabled={isUpdating}
-                      className="border rounded p-2 disabled:cursor-not-allowed"
+                      className="border rounded p-2 disabled:cursor-not-allowed w-full sm:w-auto"
                     >
                       {[3000, 5000, 10000, 20000, 30000].map(value => (
                         <option key={value} value={value}>Goal: {formatCurrency(value)}</option>
@@ -807,9 +820,8 @@ const Dashboard = () => {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-6xl mx-auto p-8">
-        <div className={`grid ${userData.isOwner ? 'lg:grid-cols-2' : 'grid-cols-1'} gap-6`}>
+      <main className="max-w-6xl mx-auto p-4 sm:p-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {userData.isOwner && (
             <DailySection
               loading={loading}
@@ -835,6 +847,9 @@ const Dashboard = () => {
           <ProgressSection
             loading={loading}
             chartData={records.chartData}
+            selectedGoal={userData.selectedGoal}
+            selectedDate={selectedDate}
+            className="col-span-1 lg:col-span-2"
           />
         </div>
       </main>

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Chart } from 'react-chartjs-2';
 
-const ProgressChart = ({ chartData, goalLineAccumulated }) => {
+const ProgressChart = ({ chartData, goalLineAccumulated, selectedDate }) => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
 
   useEffect(() => {
@@ -10,6 +10,36 @@ const ProgressChart = ({ chartData, goalLineAccumulated }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Generate all days of the selected month
+  const monthData = useMemo(() => {
+    const year = selectedDate.getFullYear();
+    const month = selectedDate.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    
+    // Generate array of all dates in the month
+    const dates = Array.from({ length: daysInMonth }, (_, i) => {
+      const date = new Date(year, month, i + 1);
+      return date.toLocaleDateString();
+    });
+
+    // Map existing data to the full month array
+    const earnings = dates.map(date => {
+      const index = chartData.labels.indexOf(date);
+      return index !== -1 ? chartData.earnings[index] : 0;
+    });
+
+    const projects = dates.map(date => {
+      const index = chartData.labels.indexOf(date);
+      return index !== -1 ? chartData.projectsCount[index] : 0;
+    });
+
+    return {
+      labels: dates,
+      earnings,
+      projectsCount: projects
+    };
+  }, [chartData, selectedDate]);
+
   const datasets = [
     {
       type: 'line',
@@ -17,7 +47,7 @@ const ProgressChart = ({ chartData, goalLineAccumulated }) => {
       yAxisID: 'y1',
       borderColor: '#10B981',
       backgroundColor: 'rgba(16, 185, 129, 0.1)',
-      data: chartData.earnings,
+      data: monthData.earnings,
       borderWidth: 4,
       fill: true,
       tension: 0.1,
@@ -42,7 +72,7 @@ const ProgressChart = ({ chartData, goalLineAccumulated }) => {
       label: 'Projects Won',
       yAxisID: 'y3',
       borderColor: '#A855F7',
-      data: chartData.projectsCount,
+      data: monthData.projectsCount,
       borderWidth: 2,
       fill: false,
       tension: 0.1,
@@ -84,7 +114,7 @@ const ProgressChart = ({ chartData, goalLineAccumulated }) => {
         display: true,
         position: 'right',
         beginAtZero: true,
-        max: Math.max(...chartData.projectsCount, 10),
+        max: Math.max(...monthData.projectsCount, 10),
         grid: { drawOnChartArea: false },
       },
     },
@@ -105,7 +135,7 @@ const ProgressChart = ({ chartData, goalLineAccumulated }) => {
     <div className="mb-8 px-4">
       <div className="w-full overflow-x-auto">
         <div className="min-w-[300px] max-w-full h-64 sm:h-80 lg:h-96">
-          <Chart type="line" data={{ labels: chartData.labels, datasets }} options={options} />
+          <Chart type="line" data={{ labels: monthData.labels, datasets }} options={options} />
         </div>
       </div>
     </div>
