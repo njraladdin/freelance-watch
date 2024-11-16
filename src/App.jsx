@@ -6,7 +6,7 @@ import 'tippy.js/dist/tippy.css';
 import { Chart } from 'react-chartjs-2';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, LineController, BarController } from 'chart.js';
-import { FiBriefcase, FiDollarSign, FiMinus, FiPlus, FiChevronLeft, FiChevronRight, FiClock, FiCreditCard, FiTarget, FiUser, FiLogIn, FiLogOut } from 'react-icons/fi';
+import { FiBriefcase, FiDollarSign, FiMinus, FiPlus, FiChevronLeft, FiChevronRight, FiClock, FiCreditCard, FiTarget, FiUser, FiLogIn, FiLogOut, FiEdit2 } from 'react-icons/fi';
 import { db } from './firebase';
 import { collection, doc, getDocs, getDoc, setDoc, query, where, addDoc, writeBatch } from 'firebase/firestore';
 import { BrowserRouter, Routes, Route, useParams, useNavigate } from 'react-router-dom';
@@ -14,6 +14,88 @@ import { signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider } from './firebase';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
+
+
+const useTrackerInputs = (userId, updateTrackerState, trackerState) => {
+  const handleInputUpdate = useCallback(async (type, value, date = new Date()) => {
+    if (!userId) return;
+    
+    const dateKey = date.toISOString().split('T')[0];
+    let updates = {};
+
+    switch (type) {
+      case 'goal':
+        // Prepare updates
+        updates = { selectedGoal: parseInt(value) };
+        
+        try {
+          // Single write to Firebase
+          await setDoc(doc(db, 'users', userId), { monthlyGoal: value }, { merge: true });
+          
+          // If successful, update local state
+          const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+          updateTrackerState(date, {
+            _initializeState: {
+              selectedGoal: parseInt(value),
+              // Update activity data with new goal
+              activityData: trackerState.activityData.map(activity => ({
+                ...activity,
+                dailyGoal: value / daysInMonth,
+                percentage: (activity.earnings / (value / daysInMonth)) * 100
+              })),
+              // Update goal line with new goal
+              goalLineAccumulated: trackerState.chartData.labels.map((_, index) => 
+                (value / trackerState.chartData.labels.length) * (index + 1)
+              )
+            }
+          });
+        } catch (error) {
+          console.error('Error updating goal:', error);
+        }
+        break;
+
+      case 'earnings':
+        updates = { earnings: Math.max(value, 0) };
+        try {
+          // Update the path to include 'records' in the document structure
+          await setDoc(doc(db, 'users', userId), {
+            records: {
+              [dateKey]: updates
+            }
+          }, { merge: true });
+          
+          // If successful, update local state
+          updateTrackerState(date, updates);
+        } catch (error) {
+          console.error('Error updating earnings:', error);
+        }
+        break;
+
+      case 'projects':
+        // Toggle projects if clicking same value
+        const newValue = value.current === value.clicked ? 0 : value.clicked;
+        updates = { projectsCount: newValue };
+        
+        try {
+          // Single write to Firebase
+          await setDoc(doc(db, 'users', userId), {
+            [`records.${dateKey}`]: updates
+          }, { merge: true });
+          
+          // If successful, update local state
+          updateTrackerState(date, updates);
+        } catch (error) {
+          console.error('Error updating projects:', error);
+        }
+        break;
+
+      default:
+        return;
+    }
+  }, [userId, updateTrackerState, trackerState]);
+
+  return handleInputUpdate;
+};
 // Primary button with solid background
  const PrimaryButton = ({ children, onClick, disabled, className = '', ...props }) => (
   <button
@@ -154,14 +236,16 @@ const DateSelector = React.memo(({ date, onDateChange }) => {
   );
 });
 
-const DayInput = React.memo(({ onDataChange, record, date }) => {
+const DayInput = React.memo(({ onInputUpdate, record, date }) => {
   const handleAmountChange = (value) => {
-    onDataChange(date, { earnings: Math.max(value, 0) });
+    onInputUpdate('earnings', value, date);
   };
 
   const handleProjectVisualClick = (value) => {
-    const newValue = record.projectsCount === value ? 0 : value;
-    onDataChange(date, { projectsCount: newValue });
+    onInputUpdate('projects', {
+      current: record.projectsCount,
+      clicked: value
+    }, date);
   };
 
   return (
@@ -237,14 +321,7 @@ const DayInput = React.memo(({ onDataChange, record, date }) => {
   );
 });
 
-const ProgressChart = ({
-  chartData,
-  goalLineDaily,
-  goalLineAccumulated,
-  isAccumulatedView,
-  toggleChartView,
-}) => {
-  const [selectedCharts, setSelectedCharts] = useState('Work');
+const ProgressChart = ({ chartData, goalLineAccumulated }) => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
 
   useEffect(() => {
@@ -253,16 +330,14 @@ const ProgressChart = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Define base dataset configurations
-  const datasetConfigs = {
-    earnings: {
+  const datasets = [
+    {
       type: 'line',
       label: 'Earnings (USD)',
       yAxisID: 'y1',
       borderColor: '#10B981',
       backgroundColor: 'rgba(16, 185, 129, 0.1)',
       data: chartData.earnings,
-      // Common properties
       borderWidth: 4,
       fill: true,
       tension: 0.1,
@@ -270,26 +345,24 @@ const ProgressChart = ({
       pointRadius: isMobile ? 0 : 3,
       pointHoverRadius: isMobile ? 0 : 6,
     },
-    goal: {
+    {
       type: 'line',
       label: 'Goal',
       yAxisID: 'y1',
       borderColor: '#FF6384',
-      data: isAccumulatedView ? goalLineAccumulated : goalLineDaily,
-      // Specific properties
+      data: goalLineAccumulated,
       borderWidth: 2,
       borderDash: [5, 5],
       fill: false,
       pointRadius: 0,
       datalabels: { display: false },
     },
-    projects: {
+    {
       type: 'line',
       label: 'Projects Won',
       yAxisID: 'y3',
       borderColor: '#A855F7',
       data: chartData.projectsCount,
-      // Specific properties
       borderWidth: 2,
       fill: false,
       tension: 0.1,
@@ -300,18 +373,9 @@ const ProgressChart = ({
         font: { weight: 'bold', size: isMobile ? 10 : 11 },
       },
     },
-  };
+  ];
 
-  // Map chart selections to datasets
-  const chartSelections = {
-    'Work': ['earnings', 'goal'],
-    'Work & Projects': ['earnings', 'goal', 'projects'],
-    'All': ['earnings', 'goal', 'projects'],
-  };
-
-  const datasets = chartSelections[selectedCharts].map(key => datasetConfigs[key]);
-
-  const baseChartOptions = {
+  const options = {
     responsive: true,
     maintainAspectRatio: false,
     interaction: { mode: 'index', intersect: false },
@@ -324,6 +388,24 @@ const ProgressChart = ({
           maxTicksLimit: isMobile ? 5 : 10,
           font: { size: isMobile ? 10 : 12 },
         },
+      },
+      y1: {
+        type: 'linear',
+        display: true,
+        position: 'left',
+        beginAtZero: true,
+        ticks: {
+          callback: (value) => `$${value}`,
+          font: { size: isMobile ? 10 : 12 },
+        },
+      },
+      y3: {
+        type: 'linear',
+        display: true,
+        position: 'right',
+        beginAtZero: true,
+        max: Math.max(...chartData.projectsCount, 10),
+        grid: { drawOnChartArea: false },
       },
     },
     plugins: {
@@ -339,68 +421,8 @@ const ProgressChart = ({
     },
   };
 
-  const options = {
-    ...baseChartOptions,
-    scales: {
-      ...baseChartOptions.scales,
-      y1: {
-        type: 'linear',
-        display: true,
-        position: 'left',
-        beginAtZero: true,
-        ticks: {
-          callback: (value) => `$${value}`,
-          font: { size: isMobile ? 10 : 12 },
-        },
-      },
-      y3: {
-        type: 'linear',
-        display: selectedCharts !== 'Work',
-        position: 'right',
-        beginAtZero: true,
-        max: Math.max(...chartData.projectsCount, 10),
-        grid: { drawOnChartArea: false },
-      },
-    },
-  };
-
   return (
     <div className="mb-8 px-4">
-      <div className="flex items-center justify-between mb-4 flex-wrap">
-        {isMobile ? (
-          <div className="w-full mb-2">
-            <select
-              value={selectedCharts}
-              onChange={(e) => setSelectedCharts(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-            >
-              {Object.keys(chartSelections).map((tab) => (
-                <option key={tab} value={tab}>{tab}</option>
-              ))}
-            </select>
-          </div>
-        ) : (
-          <div className="flex items-center space-x-2">
-            {Object.keys(chartSelections).map((tab) => (
-              <TabButton
-                key={tab}
-                isActive={selectedCharts === tab}
-                onClick={() => setSelectedCharts(tab)}
-                className="text-xs sm:text-sm whitespace-nowrap"
-              >
-                {tab}
-              </TabButton>
-            ))}
-          </div>
-        )}
-
-        <SecondaryButton
-          onClick={toggleChartView}
-          className="mt-2 sm:mt-0 text-xs sm:text-sm whitespace-nowrap"
-        >
-          Switch to {isAccumulatedView ? 'Daily' : 'Accumulated'} View
-        </SecondaryButton>
-      </div>
       <div className="w-full overflow-x-auto">
         <div className="min-w-[300px] max-w-full h-64 sm:h-80 lg:h-96">
           <Chart type="line" data={{ labels: chartData.labels, datasets }} options={options} />
@@ -463,7 +485,7 @@ const ActivityTracker = ({ activityData, today }) => {
 
   return (
     <div className="px-4">
-      <div className="flex justify-end">
+      <div className="flex justify-center">
         <div className="flex flex-wrap gap-1 max-w-[728px]">
           {/* Fill the empty squares for the first week */}
           {[...Array(firstDayOfWeek)].map((_, index) => (
@@ -569,44 +591,19 @@ const MetricsDashboard = ({ selectedGoal, currentMonthRecords, selectedDate, act
 
 
 
-// 1. Primary Sections - More subtle headers
-const MainDashboard = ({ selectedGoal, onGoalChange, loading }) => (
-  <div className="bg-white rounded-3xl p-8 mb-12 shadow-sm">
-    <div className="flex items-center justify-between">
-      <div>
-        <h2 className="text-lg font-medium text-gray-600">Monthly Goal</h2>
-      </div>
-      {loading.goal ? (
-        <div className="w-48 h-12 bg-gray-100 animate-pulse rounded-2xl"></div>
-      ) : (
-        <select
-          className="bg-white text-xl font-medium text-gray-900 rounded-2xl 
-                   px-6 py-3 border border-gray-200 focus:outline-none focus:ring-2 
-                   focus:ring-blue-500 shadow-sm transition-all appearance-none 
-                   cursor-pointer hover:border-gray-300"
-          value={selectedGoal}
-          onChange={onGoalChange}
-        >
-          {[3000, 5000, 10000, 20000, 30000].map(value => (
-            <option key={value} value={value}>{formatCurrency(value)}</option>
-          ))}
-        </select>
-      )}
-    </div>
-  </div>
-);
+
 
 // 2. Secondary Sections - Simplified headers
-const DailySection = ({ loading, selectedDate, onDateChange, onDataChange, record }) => (
+const DailySection = ({ loading, selectedDate, onDateChange, onInputUpdate, record }) => (
   <section className="bg-white rounded-3xl p-8 shadow-sm">
     <h2 className="text-lg font-medium text-gray-600 mb-8">Today's Progress</h2>
-    {loading.records ? (
+    {loading ? (
       <LoadingPlaceholder />
     ) : (
       <>
         <DateSelector date={selectedDate} onDateChange={onDateChange} />
         <DayInput
-          onDataChange={onDataChange}
+          onInputUpdate={onInputUpdate}
           record={record}
           date={selectedDate}
         />
@@ -615,10 +612,10 @@ const DailySection = ({ loading, selectedDate, onDateChange, onDataChange, recor
   </section>
 );
 
-const MetricsSection = ({ loading, metrics, activityData }) => (
-  <section className="bg-white rounded-3xl p-8 shadow-sm">
+const MetricsSection = ({ loading, metrics, activityData, className = '' }) => (
+  <section className={`bg-white rounded-3xl p-8 shadow-sm ${className}`}>
     <h2 className="text-lg font-medium text-gray-600 mb-8">Monthly Overview</h2>
-    {loading.records || loading.pastYear ? (
+    {loading ? (
       <MetricsLoadingPlaceholder />
     ) : (
       <MetricsDashboard {...metrics} activityData={activityData} />
@@ -626,32 +623,34 @@ const MetricsSection = ({ loading, metrics, activityData }) => (
   </section>
 );
 
-const ProgressSection = ({ loading, chartData, goalLines, isAccumulatedView, onToggleView }) => (
-  <section className="col-span-1 lg:col-span-2 bg-white rounded-3xl p-8 shadow-sm">
+const ProgressSection = ({ loading, chartData, goalLineAccumulated, className = '' }) => (
+  <section className={`col-span-1 lg:col-span-2 bg-white rounded-3xl p-8 shadow-sm ${className}`}>
     <h2 className="text-lg font-medium text-gray-600 mb-8">Earnings Progress</h2>
-    {loading.records || loading.pastYear ? (
+    {loading ? (
       <ChartLoadingPlaceholder />
     ) : (
       <ProgressChart
         chartData={chartData}
-        goalLineDaily={goalLines.daily}
-        goalLineAccumulated={goalLines.accumulated}
-        isAccumulatedView={isAccumulatedView}
-        toggleChartView={onToggleView}
+        goalLineAccumulated={goalLineAccumulated}
       />
     )}
   </section>
 );
 
 // Loading Placeholder Components
+const Skeleton = ({ className = '', count = 1 }) => (
+  <div className="animate-pulse space-y-4">
+    {[...Array(count)].map((_, i) => (
+      <div key={i} className={`bg-gray-100 rounded ${className}`}></div>
+    ))}
+  </div>
+);
+
 const LoadingPlaceholder = () => (
-  <div className="space-y-4 animate-pulse">
-    <div className="h-8 bg-gray-100 rounded-lg w-1/3"></div>
-    <div className="h-32 bg-gray-100 rounded-xl"></div>
-    <div className="space-y-2">
-      <div className="h-4 bg-gray-100 rounded w-5/6"></div>
-      <div className="h-4 bg-gray-100 rounded w-4/6"></div>
-    </div>
+  <div className="space-y-4">
+    <Skeleton className="h-10 w-48" />
+    <Skeleton className="h-32" />
+    <Skeleton className="h-12" count={3} />
   </div>
 );
 
@@ -680,28 +679,22 @@ const MetricsLoadingPlaceholder = () => (
   </div>
 );
 
-// Add this helper function to aggregate weekly data
-const aggregateWeeklyData = (records) => {
-  const weeks = {};
-  
-  Object.entries(records || {}).forEach(([dateStr, data]) => {
-    const date = new Date(dateStr);
-    const year = date.getFullYear();
-    const currentYear = new Date().getFullYear();
-    
-    // Only process current year's data
-    if (year === currentYear) {
-      // Get week number (1-52)
-      const weekNum = Math.ceil((date - new Date(year, 0, 1)) / (7 * 24 * 60 * 60 * 1000));
-      weeks[weekNum] = (weeks[weekNum] || 0) + (data.earnings || 0);
-    }
-  });
 
-  // Convert to array of 52 weeks, filling missing weeks with 0
-  return Array.from({ length: 52 }, (_, i) => weeks[i + 1] || 0);
-};
+// Replace the DEFAULT_TAGLINES array with a single default tagline
+const DEFAULT_TAGLINE = "Freelance wizard at work 🪄";
 
-// Modify ProfileCard to use aggregated data
+// Add this new reusable component near the other shared components
+const MonthlyIncomePill = ({ amount, className = '' }) => (
+  <div className={`flex items-center justify-center bg-blue-50 px-4 py-2 rounded-xl ${className}`}>
+    <FiCreditCard className="w-5 h-5 text-blue-500 mr-2" />
+    <span className="text-sm sm:text-base font-medium text-blue-600">
+      {formatCurrency(amount)}
+    </span>
+    <span className="text-xs sm:text-sm text-blue-400 ml-1">/mo</span>
+  </div>
+);
+
+// Update ProfileCard component (replace the existing monthly average display)
 const ProfileCard = ({ profile, isOwnProfile }) => {
   const navigate = useNavigate();
   
@@ -811,17 +804,11 @@ const ProfileCard = ({ profile, isOwnProfile }) => {
               {profile.name}
             </h3>
             <p className="text-sm text-gray-500 mt-0.5">
-              {profile.tagline || "Track your income progress"}
+              {profile.tagline || DEFAULT_TAGLINE}
             </p>
           </div>
         </div>
-        <div className="flex items-center bg-blue-50 px-3 py-1 rounded-full">
-          <FiCreditCard className="w-4 h-4 text-blue-500 mr-1.5" />
-          <span className="text-sm font-medium text-blue-600">
-            {formatMonthlyAverage(profile.monthlyAverage)}
-          </span>
-          <span className="text-sm text-blue-400 ml-0.5">/mo</span>
-        </div>
+        <MonthlyIncomePill amount={profile.monthlyAverage} />
       </div>
 
       <div className="h-36">
@@ -836,6 +823,61 @@ const ProfileSelection = () => {
   const [profiles, setProfiles] = useState([]);
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+
+  // Add handleAuth function
+  const handleAuth = async (isJoining = false) => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      
+      // Check if profile already exists for this user
+      const profilesCollection = collection(db, 'profiles');
+      const q = query(profilesCollection, where('userId', '==', user.uid));
+      const snapshot = await getDocs(q);
+      
+      if (snapshot.empty) {
+        if (!isJoining) {
+          // User tried to sign in but doesn't have an account
+          await signOut(auth);
+          alert('No account found. Please join first.');
+          return;
+        }
+
+        // Create new profile using user's display name
+        const newProfileRef = await addDoc(profilesCollection, {
+          name: user.displayName,
+          createdAt: new Date().toISOString(),
+          userId: user.uid,
+          aggregates: {
+            weekly: {},
+            monthly: {}
+          },
+          monthlyAverage: 0
+        });
+
+        // Create corresponding user document
+        await setDoc(doc(db, 'users', newProfileRef.id), {
+          monthlyGoal: 10000,
+          records: {},
+          createdAt: new Date().toISOString(),
+          userId: user.uid
+        });
+
+        // Navigate to new profile
+        navigate(`/${encodeURIComponent(user.displayName)}`);
+      } else {
+        if (isJoining) {
+          // User tried to join but already has an account
+          alert('Account already exists. Please sign in instead.');
+        }
+        // Navigate to existing profile
+        const profileData = snapshot.docs[0].data();
+        navigate(`/${encodeURIComponent(profileData.name)}`);
+      }
+    } catch (error) {
+      console.error('Auth Error:', error);
+    }
+  };
 
   useEffect(() => {
     const fetchProfiles = async () => {
@@ -861,13 +903,46 @@ const ProfileSelection = () => {
     <div className="min-h-screen bg-white">
       <header className="pt-24 pb-16 px-6">
         <div className="max-w-5xl mx-auto text-center">
+          <img 
+            src="/cat.png" 
+            alt="Freelance Watch Logo" 
+            className="w-24 h-24 mx-auto mb-8"
+          />
           <h1 className="text-5xl font-semibold text-gray-900 tracking-tight mb-6">
-            Track Together
+            Freelance Watch
           </h1>
-          <p className="text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed mb-12">
             Monitor your freelance income alongside a community of independent professionals. 
             Share progress, stay motivated, and grow together.
           </p>
+          
+          {/* Only show CTA buttons for non-authenticated users */}
+          {!currentUser && (
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
+              <button
+                onClick={() => handleAuth(true)}
+                className="w-full sm:w-auto flex items-center justify-center space-x-3 px-8 py-4 
+                         bg-blue-600 hover:bg-blue-700 text-white text-lg font-medium
+                         rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
+              >
+                <div className="bg-white p-1 rounded">
+                  <GoogleLogo />
+                </div>
+                <span>Join the Community</span>
+              </button>
+              
+              <button
+                onClick={() => handleAuth(false)}
+                className="w-full sm:w-auto flex items-center justify-center space-x-3 px-8 py-4
+                         bg-white hover:bg-gray-50 text-gray-600 text-lg
+                         rounded-2xl border-2 border-gray-200 shadow-sm hover:shadow-md 
+                         transition-all"
+              >
+                <GoogleLogo />
+                <span>Sign in</span>
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -877,10 +952,12 @@ const ProfileSelection = () => {
           <div className="space-y-8">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-semibold text-gray-900">Community</h2>
-              <span className="text-sm text-gray-500">{profiles.length} active members</span>
+              <span className="text-sm text-gray-500">
+                {profiles.length} {profiles.length === 1 ? 'active member' : 'active members'}
+              </span>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {profiles
                 .sort((a, b) => {
                   // Sort user's profile first if logged in
@@ -921,7 +998,66 @@ const ProfileSelection = () => {
   );
 };
 
-// Modify the Dashboard component to use URL params
+// Add this custom hook at the top level
+const useTrackerState = (initialData = {}) => {
+  const [state, setState] = useState({
+    currentMonthRecords: {},
+    chartData: { labels: [], earnings: [], projectsCount: [] },
+    activityData: [],
+    goalLineAccumulated: [],
+    monthlyAverage: 0,
+    ...initialData
+  });
+
+  const updateRecord = useCallback((date, updates) => {
+    const dateKey = date.toISOString().split('T')[0];
+    
+    setState(prevState => {
+      // Handle initialization update
+      if (updates._initializeState) return { ...prevState, ...updates._initializeState };
+
+      // Handle regular updates
+      const updatedRecords = {
+        ...prevState.currentMonthRecords,
+        [dateKey]: { ...(prevState.currentMonthRecords[dateKey] || {}), ...updates }
+      };
+
+      // Calculate new state
+      const sortedDates = Object.keys(updatedRecords).sort();
+      const newState = {
+        ...prevState,
+        currentMonthRecords: updatedRecords,
+        chartData: {
+          labels: sortedDates.map(date => new Date(date).toLocaleDateString()),
+          earnings: sortedDates.map(date => updatedRecords[date]?.earnings || 0),
+          projectsCount: sortedDates.map(date => updatedRecords[date]?.projectsCount || 0)
+        }
+      };
+
+      // Update activity data if needed
+      if (updates.earnings !== undefined) {
+        const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+        const dailyGoal = prevState.selectedGoal / daysInMonth;
+        newState.activityData = prevState.activityData.map(activity => 
+          activity.date.toISOString().split('T')[0] === dateKey
+            ? {
+                ...activity,
+                earnings: updates.earnings,
+                dailyGoal,
+                percentage: (updates.earnings / dailyGoal) * 100
+              }
+            : activity
+        );
+      }
+
+      return newState;
+    });
+  }, []);
+
+  return [state, updateRecord];
+};
+
+// Update Dashboard component (replace the existing monthly average display)
 const Dashboard = () => {
   const { profileName } = useParams();
   const navigate = useNavigate();
@@ -932,20 +1068,131 @@ const Dashboard = () => {
   const [selectedGoal, setSelectedGoal] = useState(10000);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [currentMonthRecords, setCurrentMonthRecords] = useState({});
-  const [isAccumulatedView, setIsAccumulatedView] = useState(false);
-  const [loading, setLoading] = useState({
-    goal: true,
-    records: true,
-    pastYear: true
-  });
+  const [loading, setLoading] = useState(true);
   const [activityData, setActivityData] = useState([]);
   const [chartData, setChartData] = useState({
     labels: [],
     earnings: [],
     projectsCount: []
   });
-  const [goalLineDaily, setGoalLineDaily] = useState([]);
   const [goalLineAccumulated, setGoalLineAccumulated] = useState([]);
+  const [monthlyAverage, setMonthlyAverage] = useState(0);
+  const [isEditingTagline, setIsEditingTagline] = useState(false);
+  const [tagline, setTagline] = useState("");
+
+  const [trackerState, updateTrackerState] = useTrackerState({
+    selectedGoal,
+    currentMonthRecords: {},
+    chartData: {
+      labels: [],
+      earnings: [],
+      projectsCount: []
+    },
+    activityData: [],
+    goalLineAccumulated: []
+  });
+
+  const handleInputUpdate = useCallback(async (type, value, date = new Date()) => {
+    if (!userId) return;
+    
+    const dateKey = date.toISOString().split('T')[0];
+    let updates = {};
+
+    switch (type) {
+      case 'goal':
+        // Prepare updates
+        updates = { selectedGoal: parseInt(value) };
+        
+        try {
+          // Single write to Firebase
+          await setDoc(doc(db, 'users', userId), { monthlyGoal: value }, { merge: true });
+          
+          // If successful, update local state
+          const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+          updateTrackerState(date, {
+            _initializeState: {
+              selectedGoal: parseInt(value),
+              // Update activity data with new goal
+              activityData: trackerState.activityData.map(activity => ({
+                ...activity,
+                dailyGoal: value / daysInMonth,
+                percentage: (activity.earnings / (value / daysInMonth)) * 100
+              })),
+              // Update goal line with new goal
+              goalLineAccumulated: trackerState.chartData.labels.map((_, index) => 
+                (value / trackerState.chartData.labels.length) * (index + 1)
+              )
+            }
+          });
+        } catch (error) {
+          console.error('Error updating goal:', error);
+        }
+        break;
+
+      case 'earnings':
+        updates = { earnings: Math.max(value, 0) };
+        try {
+          // Update the path to include 'records' in the document structure
+          await setDoc(doc(db, 'users', userId), {
+            records: {
+              [dateKey]: updates
+            }
+          }, { merge: true });
+          
+          // Recalculate monthly average after updating earnings
+          const userDoc = await getDoc(doc(db, 'users', userId));
+          const records = userDoc.data()?.records || {};
+          
+          const monthlyTotals = {};
+          Object.entries(records).forEach(([date, record]) => {
+            const month = new Date(date).getMonth();
+            monthlyTotals[month] = (monthlyTotals[month] || 0) + (record.earnings || 0);
+          });
+          const newMonthlyAverage = Object.values(monthlyTotals).reduce((sum, val) => sum + val, 0) / 
+            Math.max(Object.keys(monthlyTotals).length, 1);
+
+          // Update profile document with new monthly average
+          await setDoc(doc(db, 'profiles', userId), {
+            monthlyAverage: newMonthlyAverage
+          }, { merge: true });
+          
+          // Update local state
+          setMonthlyAverage(newMonthlyAverage);
+          updateTrackerState(date, updates);
+        } catch (error) {
+          console.error('Error updating earnings:', error);
+        }
+        break;
+
+      case 'projects':
+        // Toggle projects if clicking same value
+        const newValue = value.current === value.clicked ? 0 : value.clicked;
+        updates = { projectsCount: newValue };
+        
+        try {
+          // Single write to Firebase
+          await setDoc(doc(db, 'users', userId), {
+            [`records.${dateKey}`]: updates
+          }, { merge: true });
+          
+          // If successful, update local state
+          updateTrackerState(date, updates);
+        } catch (error) {
+          console.error('Error updating projects:', error);
+        }
+        break;
+
+      default:
+        return;
+    }
+  }, [userId, updateTrackerState]);
+
+  // Update this handler to also set the local state
+  const handleGoalChange = (e) => {
+    const newGoal = parseInt(e.target.value);
+    setSelectedGoal(newGoal);  // Add this line to update local state
+    handleInputUpdate('goal', newGoal);
+  };
 
   // Effect to fetch profile and check ownership
   useEffect(() => {
@@ -962,16 +1209,12 @@ const Dashboard = () => {
 
         const profileData = snapshot.docs[0].data();
         setUserId(snapshot.docs[0].id);
-        
-        // Check if current user owns this profile
+        setMonthlyAverage(profileData.monthlyAverage || 0);
         setIsOwner(currentUser && profileData.userId === currentUser.uid);
+        // Set tagline from profile or default
+        setTagline(profileData.tagline || DEFAULT_TAGLINE);
         
-        // Continue with your existing data fetching...
-        setLoading({
-          goal: false,
-          records: false,
-          pastYear: false
-        });
+        setLoading(false);
       } catch (error) {
         console.error('Error fetching profile:', error);
         navigate('/');
@@ -997,174 +1240,97 @@ const Dashboard = () => {
           });
           setSelectedGoal(10000);
         } else {
-          setSelectedGoal(userDoc.data().monthlyGoal || 10000);
-          setCurrentMonthRecords(userDoc.data().records || {});
+          const userData = userDoc.data();
+          setSelectedGoal(userData.monthlyGoal || 10000);
+          
+          // Get the records
+          const records = userData.records || {};
+          const sortedDates = Object.keys(records).sort();
+          
+          // Prepare chart data
+          const chartLabels = sortedDates.map(date => new Date(date).toLocaleDateString());
+          const chartEarnings = sortedDates.map(date => records[date]?.earnings || 0);
+          const chartProjects = sortedDates.map(date => records[date]?.projectsCount || 0);
+
+          // Calculate goal lines
+          const today = new Date();
+          const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+          const dailyGoal = selectedGoal / daysInMonth;
+          
+          let accumulated = 0;
+          const goalLine = chartLabels.map(() => {
+            accumulated += dailyGoal;
+            return accumulated;
+          });
+
+          // Prepare activity data
+          const activityDataArray = sortedDates.map(date => ({
+            date: new Date(date),
+            earnings: records[date]?.earnings || 0,
+            dailyGoal: dailyGoal,
+            percentage: ((records[date]?.earnings || 0) / dailyGoal) * 100
+          }));
+
+          // Calculate monthly average
+          const monthlyTotals = {};
+          Object.entries(records).forEach(([date, record]) => {
+            const month = new Date(date).getMonth();
+            monthlyTotals[month] = (monthlyTotals[month] || 0) + (record.earnings || 0);
+          });
+          const newMonthlyAverage = Object.values(monthlyTotals).reduce((sum, val) => sum + val, 0) / 
+            Math.max(Object.keys(monthlyTotals).length, 1);
+
+          // Update profile document with new monthly average
+          await setDoc(doc(db, 'profiles', userId), {
+            monthlyAverage: newMonthlyAverage
+          }, { merge: true });
+
+          // Update all state at once using the tracker
+          updateTrackerState(today, {
+            earnings: records[today.toISOString().split('T')[0]]?.earnings || 0,
+            projectsCount: records[today.toISOString().split('T')[0]]?.projectsCount || 0,
+            _initializeState: {
+              currentMonthRecords: records,
+              chartData: {
+                labels: chartLabels,
+                earnings: chartEarnings,
+                projectsCount: chartProjects
+              },
+              activityData: activityDataArray,
+              goalLineAccumulated: goalLine,
+              monthlyAverage: newMonthlyAverage,
+              selectedGoal: userData.monthlyGoal || 10000
+            }
+          });
+
+          setMonthlyAverage(newMonthlyAverage);
         }
 
-        // Calculate past year data
-        const today = new Date();
-        const pastYear = new Date(today);
-        pastYear.setFullYear(today.getFullYear() - 1);
-
-        const records = userDoc.data().records || {};
-        const sortedDates = Object.keys(records).sort();
-        
-        // Prepare chart data
-        const chartLabels = [];
-        const chartEarnings = [];
-        const chartProjects = [];
-        
-        sortedDates.forEach(date => {
-          chartLabels.push(new Date(date).toLocaleDateString());
-          chartEarnings.push(records[date]?.earnings || 0);
-          chartProjects.push(records[date]?.projectsCount || 0);
-        });
-
-        setChartData({
-          labels: chartLabels,
-          earnings: chartEarnings,
-          projectsCount: chartProjects
-        });
-
-        // Calculate goal lines
-        const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-        const dailyGoal = selectedGoal / daysInMonth;
-        
-        setGoalLineDaily(chartLabels.map(() => dailyGoal));
-        
-        let accumulated = 0;
-        setGoalLineAccumulated(chartLabels.map((_, index) => {
-          accumulated += dailyGoal;
-          return accumulated;
-        }));
-
-        // Prepare activity data
-        const activityDataArray = sortedDates.map(date => ({
-          date: new Date(date),
-          earnings: records[date]?.earnings || 0,
-          dailyGoal: dailyGoal,
-          percentage: ((records[date]?.earnings || 0) / dailyGoal) * 100
-        }));
-
-        setActivityData(activityDataArray);
-        
-        // Update loading states
-        setLoading(prev => ({
-          ...prev,
-          goal: false,
-          records: false,
-          pastYear: false
-        }));
+        // Update all loading states at once
+        setLoading(false);
       } catch (error) {
         console.error('Error fetching user data:', error);
-        setLoading(prev => ({
-          ...prev,
-          goal: false,
-          records: false,
-          pastYear: false
-        }));
+        setLoading(false);
       }
     };
 
     fetchUserData();
-  }, [userId, selectedGoal]); // Added selectedGoal as dependency
+  }, [userId]);
 
   // Handler functions
-  const handleGoalChange = async (e) => {
-    if (!userId) return;
-    const newGoal = parseInt(e.target.value);
-    setSelectedGoal(newGoal);
-    try {
-      await setDoc(doc(db, 'users', userId), { monthlyGoal: newGoal }, { merge: true });
-    } catch (error) {
-      console.error('Error updating goal:', error);
-    }
-  };
-
-  // Add this function to aggregate data when saving records
-  const handleDataChange = async (date, updates) => {
-    if (!userId) return;
-    const dateKey = date.toISOString().split('T')[0];
+  const handleTaglineUpdate = async (newTagline) => {
+    if (!userId || !isOwner) return;
     
     try {
-      // Update records in users collection
-      const updatedRecords = {
-        ...currentMonthRecords,
-        [dateKey]: {
-          ...(currentMonthRecords[dateKey] || {}),
-          ...updates
-        }
-      };
-      setCurrentMonthRecords(updatedRecords);
-
-      // Calculate weekly and monthly aggregates
-      const weekNum = Math.ceil((date - new Date(date.getFullYear(), 0, 1)) / (7 * 24 * 60 * 60 * 1000));
-      const monthNum = date.getMonth();
-      
-      // Get profile reference
-      const profileRef = doc(db, 'profiles', userId);
-      const profileDoc = await getDoc(profileRef);
-      const currentAggregates = profileDoc.data().aggregates || {
-        weekly: {},
-        monthly: {}
-      };
-
-      // Update weekly aggregate
-      currentAggregates.weekly[weekNum] = (currentAggregates.weekly[weekNum] || 0) + 
-        (updates.earnings - (currentMonthRecords[dateKey]?.earnings || 0));
-
-      // Update monthly aggregate
-      currentAggregates.monthly[monthNum] = (currentAggregates.monthly[monthNum] || 0) + 
-        (updates.earnings - (currentMonthRecords[dateKey]?.earnings || 0));
-
-      // Batch write to both collections
-      const batch = writeBatch(db);
-      batch.update(doc(db, 'users', userId), {
-        records: updatedRecords
-      });
-      batch.update(profileRef, {
-        aggregates: currentAggregates,
-        monthlyAverage: Object.values(currentAggregates.monthly).reduce((sum, val) => sum + val, 0) / 
-          Object.keys(currentAggregates.monthly).length
-      });
-      
-      await batch.commit();
-
-      // Calculate daily goal
-      const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-      const dailyGoal = selectedGoal / daysInMonth;
-
-      // Update activity data immediately
-      setActivityData(prev => {
-        const dateStr = date.toISOString().split('T')[0];
-        return prev.map(activity => {
-          if (activity.date.toISOString().split('T')[0] === dateStr) {
-            return {
-              ...activity,
-              earnings: updates.earnings || activity.earnings,
-              dailyGoal,
-              percentage: ((updates.earnings || activity.earnings) / dailyGoal) * 100
-            };
-          }
-          return activity;
-        });
-      });
-
-      await setDoc(doc(db, 'users', userId), {
-        records: updatedRecords
+      await setDoc(doc(db, 'profiles', userId), {
+        tagline: newTagline
       }, { merge: true });
+      
+      setTagline(newTagline);
+      setIsEditingTagline(false);
     } catch (error) {
-      console.error('Error updating records:', error);
+      console.error('Error updating tagline:', error);
     }
-  };
-
-  const getRecordForSelectedDate = () => {
-    const dateKey = selectedDate.toISOString().split('T')[0];
-    return currentMonthRecords[dateKey] || {};
-  };
-
-  const toggleChartView = () => {
-    setIsAccumulatedView(!isAccumulatedView);
   };
 
   if (!userId) {
@@ -1174,60 +1340,120 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#FBFBFD]">
-      <header className="pt-16 pb-12 border-b border-gray-100">
-        <div className="max-w-6xl mx-auto px-6">
-          <h1 className="text-3xl font-semibold text-gray-900 tracking-tight">
-            {profileName}'s Dashboard
-          </h1>
-          <p className="text-base text-gray-500 mt-2 tracking-tight">
-            {isOwner ? 'Manage your income and track your progress.' : 'View income progress.'}
-          </p>
+    <div className=" bg-[#FBFBFD]">
+      <header className="pt-8 sm:pt-16 pb-8 sm:pb-12 border-b border-gray-100">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="flex flex-col space-y-4">
+            {/* Profile Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900 tracking-tight">
+                  {profileName}'s Page
+                </h1>
+                <div className="flex items-center mt-2">
+                  {isEditingTagline ? (
+                    <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2 w-full sm:w-auto">
+                      <input
+                        type="text"
+                        value={tagline}
+                        onChange={(e) => setTagline(e.target.value)}
+                        className="text-sm sm:text-base text-gray-600 bg-white border border-gray-200 
+                                 rounded-md px-3 py-1 focus:outline-none focus:ring-2 
+                                 focus:ring-blue-500 focus:border-transparent w-full sm:w-auto"
+                        placeholder="Enter your tagline..."
+                        maxLength={50}
+                      />
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handleTaglineUpdate(tagline)}
+                          className="text-sm text-green-600 hover:text-green-700"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setIsEditingTagline(false)}
+                          className="text-sm text-gray-500 hover:text-gray-600"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center space-x-2">
+                      <p className="text-sm sm:text-base text-gray-500 tracking-tight">{tagline}</p>
+                      {isOwner && (
+                        <button
+                          onClick={() => setIsEditingTagline(true)}
+                          className="text-gray-400 hover:text-gray-600 transition-colors"
+                          aria-label="Edit tagline"
+                        >
+                          <FiEdit2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Goal and Monthly Income */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
+                {isOwner && (
+                  <div className="relative w-full sm:w-auto">
+                    <select
+                      className="w-full sm:w-auto appearance-none bg-gray-50 text-sm sm:text-base 
+                               font-medium text-gray-700 rounded-xl pl-4 pr-10 py-2 border 
+                               border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 
+                               cursor-pointer hover:bg-gray-100 transition-colors"
+                      value={selectedGoal}
+                      onChange={handleGoalChange}
+                    >
+                      {[3000, 5000, 10000, 20000, 30000].map(value => (
+                        <option key={value} value={value}>Goal: {formatCurrency(value)}</option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
+                )}
+                <MonthlyIncomePill amount={monthlyAverage} className="w-full sm:w-auto" />
+              </div>
+            </div>
+          </div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-12">
-        {/* Only show MainDashboard if owner */}
-        {isOwner && (
-          <MainDashboard 
-            selectedGoal={selectedGoal}
-            onGoalChange={handleGoalChange}
-            loading={loading}
-          />
-        )}
+      {/* Main Content */}
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+        <div className={`grid grid-cols-1 ${isOwner ? 'lg:grid-cols-2' : ''} gap-6 sm:gap-12`}>
+          {isOwner && (
+            <DailySection 
+              loading={loading}
+              selectedDate={selectedDate}
+              onDateChange={setSelectedDate}
+              onInputUpdate={handleInputUpdate}
+              record={trackerState.currentMonthRecords[selectedDate.toISOString().split('T')[0]] || {}}
+            />
+          )}
 
-        {/* Only show DailySection if owner */}
-        {isOwner && (
-          <DailySection 
-            loading={loading}
-            selectedDate={selectedDate}
-            onDateChange={setSelectedDate}
-            onDataChange={handleDataChange}
-            record={getRecordForSelectedDate()}
-          />
-        )}
-
-        {/* Always show MetricsSection and ProgressSection */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           <MetricsSection 
             loading={loading}
             metrics={{
               selectedGoal,
-              currentMonthRecords,
+              currentMonthRecords: trackerState.currentMonthRecords,
               selectedDate,
             }}
-            activityData={activityData}
+            activityData={trackerState.activityData}
+            className={!isOwner ? 'lg:col-span-1' : ''}
           />
 
           <ProgressSection 
             loading={loading}
-            chartData={chartData}
-            goalLines={{
-              daily: goalLineDaily,
-              accumulated: goalLineAccumulated
-            }}
-            isAccumulatedView={isAccumulatedView}
-            onToggleView={toggleChartView}
+            chartData={trackerState.chartData}
+            goalLineAccumulated={trackerState.goalLineAccumulated}
+            className={!isOwner ? 'lg:col-span-1' : ''}
           />
         </div>
       </main>
@@ -1235,12 +1461,115 @@ const Dashboard = () => {
   );
 };
 
-// Define Header component before App
+// Add this Google logo component
+const GoogleLogo = () => (
+  <svg className="w-4 h-4 sm:w-5 sm:h-5" viewBox="0 0 24 24">
+    <path
+      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+      fill="#4285F4"
+    />
+    <path
+      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+      fill="#34A853"
+    />
+    <path
+      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+      fill="#FBBC05"
+    />
+    <path
+      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+      fill="#EA4335"
+    />
+  </svg>
+);
+
+// Add this new component for the mobile menu
+const MobileMenu = ({ isOpen, onClose, currentUser, onAuth, onLogout }) => {
+  return (
+    <div 
+      className={`fixed inset-0 bg-gray-800/50 backdrop-blur-sm z-50 transition-opacity duration-200 ${
+        isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+      }`}
+      onClick={onClose}
+    >
+      <div 
+        className={`fixed inset-y-0 right-0 w-[280px] bg-white shadow-xl transform transition-transform duration-300 ease-in-out ${
+          isOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Mobile Menu Content */}
+        <div className="flex flex-col h-full">
+          {/* Header */}
+          <div className="p-4 border-b border-gray-100">
+            <button 
+              onClick={onClose}
+              className="p-2 rounded-full hover:bg-gray-100 float-right"
+            >
+              <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Menu Items */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {currentUser ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-blue-50 rounded-xl">
+                  <p className="text-sm text-gray-500">Signed in as</p>
+                  <p className="font-medium text-gray-900">{currentUser.displayName}</p>
+                </div>
+                <button
+                  onClick={onLogout}
+                  className="w-full flex items-center justify-center space-x-2 px-4 py-2
+                           bg-white border border-gray-200 text-gray-600
+                           rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  <FiLogOut className="w-5 h-5" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <button
+                  onClick={() => onAuth(true)}
+                  className="w-full flex items-center justify-center space-x-2 px-4 py-3
+                           bg-blue-600 hover:bg-blue-700 text-white font-medium
+                           rounded-xl shadow-sm transition-colors"
+                >
+                  <div className="bg-white p-0.5 rounded">
+                    <GoogleLogo />
+                  </div>
+                  <span>Join with Google</span>
+                </button>
+                
+                <button
+                  onClick={() => onAuth(false)}
+                  className="w-full flex items-center justify-center space-x-2 px-4 py-3
+                           bg-white hover:bg-gray-50 text-gray-600
+                           rounded-xl border border-gray-200 shadow-sm transition-colors"
+                >
+                  <GoogleLogo />
+                  <span>Sign in</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Update the Header component
 const Header = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const handleLogin = async () => {
+  const handleAuth = async (isJoining = false) => {
+    setIsMobileMenuOpen(false);
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
@@ -1251,6 +1580,13 @@ const Header = () => {
       const snapshot = await getDocs(q);
       
       if (snapshot.empty) {
+        if (!isJoining) {
+          // User tried to sign in but doesn't have an account
+          await signOut(auth);
+          alert('No account found. Please join first.');
+          return;
+        }
+
         // Create new profile using user's display name
         const newProfileRef = await addDoc(profilesCollection, {
           name: user.displayName,
@@ -1274,16 +1610,21 @@ const Header = () => {
         // Navigate to new profile
         navigate(`/${encodeURIComponent(user.displayName)}`);
       } else {
+        if (isJoining) {
+          // User tried to join but already has an account
+          alert('Account already exists. Please sign in instead.');
+        }
         // Navigate to existing profile
         const profileData = snapshot.docs[0].data();
         navigate(`/${encodeURIComponent(profileData.name)}`);
       }
     } catch (error) {
-      console.error('Login Error:', error);
+      console.error('Auth Error:', error);
     }
   };
 
   const handleLogout = async () => {
+    setIsMobileMenuOpen(false);
     try {
       await signOut(auth);
       navigate('/');
@@ -1293,55 +1634,130 @@ const Header = () => {
   };
 
   return (
-    <header className="bg-white border-b border-gray-100">
-      <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <h1 className="text-2xl font-semibold text-gray-900">
-            Income Tracker
-          </h1>
-        </div>
-        {currentUser ? (
-          <div className="flex items-center space-x-4">
-            <div className="text-sm">
-              <span className="text-gray-500">Signed in as</span>{' '}
-              <span className="font-medium text-gray-900">{currentUser.displayName}</span>
+    <>
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-40">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center justify-between h-16 sm:h-20">
+            {/* Logo and Title */}
+            <div className="flex items-center space-x-3 sm:space-x-4">
+              <img 
+                src="/cat.png" 
+                alt="Freelance Watch Logo" 
+                className="w-8 h-8 sm:w-9 sm:h-9 cursor-pointer"
+                onClick={() => navigate('/')}
+              />
+              <h1 
+                onClick={() => navigate('/')} 
+                className="text-xl sm:text-2xl font-semibold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors"
+              >
+                Freelance Watch
+              </h1>
             </div>
-            <SecondaryButton
-              onClick={handleLogout}
-              className="flex items-center space-x-2"
+
+            {/* Desktop Auth Buttons */}
+            <div className="hidden sm:flex items-center space-x-4">
+              {currentUser ? (
+                <div className="flex items-center space-x-4">
+                  <div className="text-sm">
+                    <span className="text-gray-500">Signed in as</span>{' '}
+                    <span className="font-medium text-gray-900">{currentUser.displayName}</span>
+                  </div>
+                  <SecondaryButton
+                    onClick={handleLogout}
+                    className="flex items-center space-x-2"
+                  >
+                    <FiLogOut className="w-4 h-4" />
+                    <span>Sign Out</span>
+                  </SecondaryButton>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => handleAuth(true)}
+                    className="flex items-center space-x-2 px-4 py-2 
+                             bg-blue-600 hover:bg-blue-700 text-white font-medium 
+                             rounded-xl shadow-sm transition-colors"
+                  >
+                    <div className="bg-white p-0.5 rounded">
+                      <GoogleLogo />
+                    </div>
+                    <span>Join with Google</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => handleAuth(false)}
+                    className="flex items-center space-x-2 px-4 py-2 
+                             bg-white hover:bg-gray-50 text-gray-600
+                             rounded-xl border border-gray-200 shadow-sm transition-colors"
+                  >
+                    <GoogleLogo />
+                    <span>Sign in</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="sm:hidden p-2 rounded-xl hover:bg-gray-100 transition-colors"
             >
-              <FiLogOut className="w-4 h-4" />
-              <span>Sign Out</span>
-            </SecondaryButton>
+              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+              </svg>
+            </button>
           </div>
-        ) : (
-          <PrimaryButton
-            onClick={handleLogin}
-            className="flex items-center space-x-2"
-          >
-            <FiLogIn className="w-4 h-4" />
-            <span>Sign in with Google</span>
-          </PrimaryButton>
-        )}
-      </div>
-    </header>
+        </div>
+      </header>
+
+      {/* Mobile Menu */}
+      <MobileMenu
+        isOpen={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
+        currentUser={currentUser}
+        onAuth={handleAuth}
+        onLogout={handleLogout}
+      />
+    </>
   );
 };
 
-// Then define App component
+// Add this new Footer component before the App component
+const Footer = () => (
+  <footer className="bg-white border-t border-gray-100 py-6">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6">
+      <div className="flex justify-center items-center space-x-2 text-sm text-gray-500">
+        <span>Contact developer:</span>
+        <a 
+          href="https://x.com/aladdinnjr" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-700 font-medium"
+        >
+          @aladdinnjr
+        </a>
+      </div>
+    </div>
+  </footer>
+);
+
+// Update the App component to include the Footer
 const App = () => {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <div className="min-h-screen bg-[#FBFBFD]">
-          <Header />
+    <BrowserRouter>
+      <div className="flex flex-col  bg-[#FBFBFD]">
+        <Header />
+        <main className="flex-1">
           <Routes>
             <Route path="/" element={<ProfileSelection />} />
             <Route path="/:profileName" element={<Dashboard />} />
           </Routes>
-        </div>
-      </BrowserRouter>
-    </AuthProvider>
+        </main>
+        <Footer />
+      </div>
+    </BrowserRouter>
+  </AuthProvider>
   );
 };
 

@@ -1,7 +1,7 @@
 {
   "hosting": {
     "public": "dist",
-    "site": "freelancetracker",
+    "site": "freelancewatch",
     "ignore": [
       "firebase.json",
       "**/.*",
