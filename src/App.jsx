@@ -268,7 +268,7 @@ const DailySection = ({
             <div className="flex items-center justify-center space-x-4">
               <button
                 disabled={isUpdating}
-                onClick={() => updateRecord({ earnings: Math.max((currentRecord.earnings || 0) - 50, 0) })}
+                onClick={() => updateRecord({ earnings: Math.max((currentRecord.earnings || 0) - 10, 0) })}
                 className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 disabled:cursor-not-allowed"
               >
                 <FiMinus className="w-6 h-6" />
@@ -284,7 +284,7 @@ const DailySection = ({
 
               <button
                 disabled={isUpdating}
-                onClick={() => updateRecord({ earnings: (currentRecord.earnings || 0) + 50 })}
+                onClick={() => updateRecord({ earnings: (currentRecord.earnings || 0) + 10 })}
                 className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 disabled:cursor-not-allowed"
               >
                 <FiPlus className="w-6 h-6" />
@@ -822,28 +822,41 @@ const Dashboard = () => {
 
       <main className="max-w-6xl mx-auto p-4 sm:p-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          {userData.isOwner && (
-            <DailySection
+          {userData.isOwner ? (
+            <>
+              <DailySection
+                loading={loading}
+                selectedDate={selectedDate}
+                onDateChange={setSelectedDate}
+                userId={userData.userId}
+                selectedGoal={userData.selectedGoal}
+                currentRecord={records.currentMonth[selectedDate.toISOString().split('T')[0]] || {}}
+                isUpdating={isUpdating}
+                setIsUpdating={setIsUpdating}
+                onRecordUpdate={handleRecordUpdate}
+              />
+              <MetricsSection
+                loading={loading}
+                metrics={{
+                  selectedGoal: userData.selectedGoal,
+                  currentMonthRecords: records.currentMonth,
+                  selectedDate,
+                }}
+                activityData={records.activityData}
+              />
+            </>
+          ) : (
+            <MetricsSection
               loading={loading}
-              selectedDate={selectedDate}
-              onDateChange={setSelectedDate}
-              userId={userData.userId}
-              selectedGoal={userData.selectedGoal}
-              currentRecord={records.currentMonth[selectedDate.toISOString().split('T')[0]] || {}}
-              isUpdating={isUpdating}
-              setIsUpdating={setIsUpdating}
-              onRecordUpdate={handleRecordUpdate}
+              metrics={{
+                selectedGoal: userData.selectedGoal,
+                currentMonthRecords: records.currentMonth,
+                selectedDate,
+              }}
+              activityData={records.activityData}
+              className="col-span-2"
             />
           )}
-          <MetricsSection
-            loading={loading}
-            metrics={{
-              selectedGoal: userData.selectedGoal,
-              currentMonthRecords: records.currentMonth,
-              selectedDate,
-            }}
-            activityData={records.activityData}
-          />
           <ProgressSection
             loading={loading}
             chartData={records.chartData}
