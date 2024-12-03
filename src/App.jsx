@@ -5,7 +5,7 @@ import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, LineController, BarController } from 'chart.js';
-import { FiBriefcase, FiDollarSign, FiMinus, FiPlus, FiChevronLeft, FiChevronRight, FiClock, FiCreditCard, FiTarget, FiUser, FiLogIn, FiLogOut, FiEdit2 } from 'react-icons/fi';
+import { FiBriefcase, FiDollarSign, FiMinus, FiPlus, FiChevronLeft, FiChevronRight, FiClock, FiCreditCard, FiTarget, FiUser, FiLogIn, FiLogOut, FiEdit2, FiCheck, FiX } from 'react-icons/fi';
 import { db } from './firebase';
 import { collection, doc, getDocs, getDoc, setDoc, query, where, addDoc, writeBatch } from 'firebase/firestore';
 import { BrowserRouter, Routes, Route, useParams, useNavigate } from 'react-router-dom';
@@ -14,7 +14,8 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import ProgressChart from './components/ProgressChart';
 import ProfileSelection from './components/ProfileSelection';
-
+import MigrationTool from './components/MigrationTool';
+import { getGoalsPath, getRecordsPath, getStatsPath, calculateMonthlyAverage } from './firebase';
 // Register ChartJS components
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, LineController, BarController, ChartDataLabels);
 
@@ -25,6 +26,11 @@ const formatCurrency = (amount) =>
     currency: 'USD',
     maximumFractionDigits: 0
   }).format(amount ?? 0);
+
+// Add this with the other helper functions at the top of the file
+const getDaysInMonth = (date) => {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+};
 
 // Add the getWeekNumber function here
 const getWeekNumber = (date) => {
@@ -123,6 +129,20 @@ const DateSelector = React.memo(({ date, onDateChange, disabled }) => {
   );
 });
 
+// First, let's create reusable UI components
+const MetricCard = ({ icon: Icon, title, children, disabled }) => (
+  <div className={`mt-6 p-6 rounded-xl border border-gray-100 ${disabled ? 'opacity-50' : ''}`}>
+    <div className="flex items-center mb-4">
+      <div className={`p-2 ${Icon.color} rounded-lg`}>
+        <Icon.component className={`${Icon.textColor} w-6 h-6`} />
+      </div>
+      <h3 className="ml-3 text-lg font-semibold">{title}</h3>
+    </div>
+    {children}
+  </div>
+);
+
+// Simplified DailySection component
 const DailySection = ({ 
   loading, 
   selectedDate, 
@@ -134,202 +154,250 @@ const DailySection = ({
   isUpdating,
   setIsUpdating 
 }) => {
-  const updateRecord = async (updates) => {
-    if (isUpdating) return;
+  const handleUpdate = useCallback(async (updates) => {
+    if (isUpdating || loading || !userId) return;
+    
     setIsUpdating(true);
     try {
-      console.log('🔍 updateRecord called with:', {
-        updates,
-        currentRecord,
-        userId,
-        selectedDate: selectedDate.toISOString()
-      });
+      const monthKey = getMonthKey(selectedDate);
+      const dayKey = selectedDate.getDate().toString();
       
-      if (loading || !userId) {
-        console.log('❌ Skipping update - loading:', loading, 'userId:', userId);
-        return;
-      }
-      
-      const dateKey = selectedDate.toISOString().split('T')[0];
-      const daysInMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).getDate();
+      // Calculate percentage based on current day's earnings and current monthly goal
+      const daysInMonth = getDaysInMonth(selectedDate);
       const dailyGoal = selectedGoal / daysInMonth;
-
-      const updatedRecord = {
-        ...currentRecord,
-        ...updates,
-        ...(updates.earnings !== undefined && {
-          percentage: (updates.earnings / dailyGoal) * 100
-        })
-      };
-
-      console.log('📝 Updated record:', updatedRecord);
-
-      // Get profile document directly by ID instead of querying
-      const profileDoc = doc(db, 'profiles', userId);
-      const profileSnapshot = await getDoc(profileDoc);
+      const percentage = ((updates.earnings || 0) / dailyGoal) * 100;
       
-      if (!profileSnapshot.exists()) {
-        console.error('❌ No profile found with ID:', userId);
-        return;
-      }
-
-      const profileData = profileSnapshot.data();
-      console.log('👤 Found profile:', profileData);
-
+      // Get current month's records
+      const recordsDoc = await getDoc(doc(db, getRecordsPath(userId, monthKey)));
+      const monthRecords = recordsDoc.exists() ? recordsDoc.data().days || {} : {};
+      
+      // Update the specific day with percentage
+      monthRecords[dayKey] = {
+        ...monthRecords[dayKey],
+        ...updates,
+        percentage // Store the percentage with the record
+      };
+      
+      // Calculate new monthly total
+      const totalEarnings = Object.values(monthRecords).reduce((sum, day) => sum + (day.earnings || 0), 0);
+      
+      // Get profile document to update recentMonths
+      const profileDoc = await getDoc(doc(db, 'profiles', userId));
+      const profileData = profileDoc.exists() ? profileDoc.data() : {};
+      const recentMonths = profileData.recentMonths || {};
+      
+      // Update the current month's total
+      recentMonths[monthKey] = totalEarnings;
+      
+      // Calculate new monthly average using the helper function
+      const monthlyAverage = calculateMonthlyAverage(recentMonths);
+      
       const batch = writeBatch(db);
+      
+      // Update records
+      batch.set(doc(db, getRecordsPath(userId, monthKey)), {
+        days: monthRecords,
+        totalEarnings,
+        averageDailyEarnings: totalEarnings / Object.keys(monthRecords).length,
+        projectsCompleted: Object.values(monthRecords).reduce((sum, day) => sum + (day.projectsCount || 0), 0)
+      });
 
-      // Update daily record in users collection
-      batch.set(doc(db, 'users', userId), {
-        [`records.${dateKey}`]: updatedRecord
+      // Update profile with new recentMonths and monthlyAverage
+      batch.set(doc(db, 'profiles', userId), {
+        recentMonths,
+        monthlyAverage
       }, { merge: true });
 
-      // If earnings were updated, update aggregates
-      if (updates.earnings !== undefined) {
-        const weekNumber = getWeekNumber(selectedDate);
-        const monthNumber = selectedDate.getMonth();
-        
-        console.log('📅 Updating aggregates for:', {
-          weekNumber,
-          monthNumber,
-          currentEarnings: currentRecord.earnings || 0,
-          newEarnings: updates.earnings
-        });
-
-        // Get current aggregates or initialize if not exists
-        const currentAggregates = profileData.aggregates || { weekly: {}, monthly: {} };
-        
-        // Calculate the difference in earnings
-        const earningsDifference = updates.earnings - (currentRecord.earnings || 0);
-        
-        console.log('💰 Earnings difference:', earningsDifference);
-
-        // Update weekly and monthly totals
-        const updatedAggregates = {
-          weekly: { ...currentAggregates.weekly },
-          monthly: { ...currentAggregates.monthly }
-        };
-
-        // Update weekly total
-        updatedAggregates.weekly[weekNumber] = (updatedAggregates.weekly[weekNumber] || 0) + earningsDifference;
-
-        // Update monthly total
-        updatedAggregates.monthly[monthNumber] = (updatedAggregates.monthly[monthNumber] || 0) + earningsDifference;
-
-        console.log('📊 Updated aggregates:', updatedAggregates);
-
-        // Calculate new monthly average
-        const monthlyValues = Object.values(updatedAggregates.monthly);
-        const monthlyAverage = monthlyValues.length > 0 
-          ? monthlyValues.reduce((sum, val) => sum + val, 0) / monthlyValues.length 
-          : 0;
-
-        console.log('📈 New monthly average:', monthlyAverage);
-
-        // Update profile document
-        batch.set(profileDoc, {
-          aggregates: updatedAggregates,
-          monthlyAverage
-        }, { merge: true });
-      }
+      // Update stats
+      batch.set(doc(db, getStatsPath(userId)), {
+        monthlyAverages: {
+          [monthKey]: totalEarnings
+        },
+        monthlyTotals: {
+          [monthKey]: totalEarnings
+        },
+        lastUpdated: new Date()
+      }, { merge: true });
 
       await batch.commit();
-      console.log('✅ Successfully saved all updates to Firebase');
-      onRecordUpdate(updatedRecord);
+      
+      // Update local state with new values
+      onRecordUpdate({
+        ...updates,
+        percentage,
+        recentMonths,
+        monthlyAverage
+      });
     } catch (error) {
-      console.error('❌ Error updating record:', error);
-      console.error(error);
+      console.error('[handleUpdate] Error:', error);
     } finally {
       setIsUpdating(false);
     }
-  };
+  }, [isUpdating, loading, userId, selectedDate, selectedGoal, onRecordUpdate]);
+
+  if (loading) return <LoadingPlaceholder />;
 
   return (
     <section className="bg-white rounded-3xl p-4 sm:p-8 shadow-sm">
       <h2 className="text-lg font-medium text-gray-600 mb-8">Today's Progress</h2>
-      {loading ? (
-        <LoadingPlaceholder />
-      ) : (
-        <>
-          <DateSelector 
-            date={selectedDate} 
-            onDateChange={onDateChange} 
+      
+      <DateSelector 
+        date={selectedDate} 
+        onDateChange={onDateChange} 
+        disabled={isUpdating}
+      />
+      
+      <MetricCard 
+        icon={{ 
+          component: FiDollarSign, 
+          color: 'bg-green-50', 
+          textColor: 'text-green-500' 
+        }} 
+        title="Today's Income"
+        disabled={isUpdating}
+      >
+        <div className="flex items-center justify-center space-x-4">
+          <button
             disabled={isUpdating}
+            onClick={() => handleUpdate({ earnings: Math.max((currentRecord.earnings || 0) - 10, 0) })}
+            className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 disabled:cursor-not-allowed"
+          >
+            <FiMinus className="w-6 h-6" />
+          </button>
+
+          <input
+            type="number"
+            value={currentRecord.earnings || 0}
+            onChange={(e) => handleUpdate({ earnings: Math.max(parseFloat(e.target.value) || 0, 0) })}
+            disabled={isUpdating}
+            className="w-32 text-center text-2xl font-bold border-b-2 border-green-400 disabled:cursor-not-allowed"
           />
-          
-          {/* Income Input */}
-          <div className={`mt-6 p-6 rounded-xl border border-gray-100 ${isUpdating ? 'opacity-50' : ''}`}>
-            <div className="flex items-center mb-4">
-              <div className="p-2 bg-green-50 rounded-lg">
-                <FiDollarSign className="text-green-500 w-6 h-6" />
-              </div>
-              <h3 className="ml-3 text-lg font-semibold">Today's Income</h3>
-            </div>
 
-            <div className="flex items-center justify-center space-x-4">
-              <button
-                disabled={isUpdating}
-                onClick={() => updateRecord({ earnings: Math.max((currentRecord.earnings || 0) - 10, 0) })}
-                className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 disabled:cursor-not-allowed"
-              >
-                <FiMinus className="w-6 h-6" />
-              </button>
+          <button
+            disabled={isUpdating}
+            onClick={() => handleUpdate({ earnings: (currentRecord.earnings || 0) + 10 })}
+            className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 disabled:cursor-not-allowed"
+          >
+            <FiPlus className="w-6 h-6" />
+          </button>
+        </div>
+      </MetricCard>
 
-              <input
-                type="number"
-                value={currentRecord.earnings || 0}
-                onChange={(e) => updateRecord({ earnings: Math.max(parseFloat(e.target.value) || 0, 0) })}
-                disabled={isUpdating}
-                className="w-32 text-center text-2xl font-bold border-b-2 border-green-400 disabled:cursor-not-allowed"
-              />
-
-              <button
-                disabled={isUpdating}
-                onClick={() => updateRecord({ earnings: (currentRecord.earnings || 0) + 10 })}
-                className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 disabled:cursor-not-allowed"
-              >
-                <FiPlus className="w-6 h-6" />
-              </button>
-            </div>
-          </div>
-
-          {/* Projects Input */}
-          <div className={`mt-6 p-6 rounded-xl border border-gray-100 ${isUpdating ? 'opacity-50' : ''}`}>
-            <div className="flex items-center mb-4">
-              <div className="p-2 bg-purple-50 rounded-lg">
-                <FiBriefcase className="text-purple-500 w-6 h-6" />
-              </div>
-              <h3 className="ml-3 text-lg font-semibold">Projects Won</h3>
-            </div>
-
-            <div className="flex justify-center space-x-3">
-              {[1, 2, 3, 4, 5].map((num) => (
-                <button
-                  key={num}
-                  disabled={isUpdating}
-                  onClick={() => updateRecord({ 
-                    projectsCount: currentRecord.projectsCount === num ? 0 : num 
-                  })}
-                  className={`w-12 h-12 rounded-lg flex items-center justify-center
-                    ${currentRecord.projectsCount >= num ? 'bg-purple-500 text-white' : 'bg-gray-50 hover:bg-purple-50'}
-                    disabled:cursor-not-allowed`}
-                >
-                  {currentRecord.projectsCount >= num ? (
-                    <FiBriefcase />
-                  ) : (
-                    num
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
+      <MetricCard 
+        icon={{ 
+          component: FiBriefcase, 
+          color: 'bg-purple-50', 
+          textColor: 'text-purple-500' 
+        }} 
+        title="Projects Won"
+        disabled={isUpdating}
+      >
+        <div className="flex justify-center space-x-3">
+          {[1, 2, 3, 4, 5].map((num) => (
+            <button
+              key={num}
+              disabled={isUpdating}
+              onClick={() => handleUpdate({ 
+                projectsCount: currentRecord.projectsCount === num ? 0 : num 
+              })}
+              className={`w-12 h-12 rounded-lg flex items-center justify-center
+                ${currentRecord.projectsCount >= num ? 'bg-purple-500 text-white' : 'bg-gray-50 hover:bg-purple-50'}
+                disabled:cursor-not-allowed`}
+            >
+              {currentRecord.projectsCount >= num ? <FiBriefcase /> : num}
+            </button>
+          ))}
+        </div>
+      </MetricCard>
     </section>
   );
 };
 
-const ActivityTracker = ({ activityData, today }) => {
-  const getColorClass = (percentage) => {
+// First, let's create a separate hook for metrics calculations
+const useMetricsCalculation = (selectedGoal, currentMonthRecords, selectedDate) => {
+  return useMemo(() => {
+    const firstDayOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+    const lastDayOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
+    const daysInMonth = lastDayOfMonth.getDate();
+
+    const monthRecords = Object.entries(currentMonthRecords).filter(([date]) => {
+      const recordDate = new Date(date);
+      return recordDate.getMonth() === selectedDate.getMonth() &&
+             recordDate.getFullYear() === selectedDate.getFullYear();
+    });
+
+    const totalEarnings = monthRecords.reduce((sum, [_, rec]) => sum + (rec.earnings || 0), 0);
+    const remainingGoal = Math.max(selectedGoal - totalEarnings, 0);
+    const remainingDays = Math.max(daysInMonth - selectedDate.getDate() + 1, 1);
+    const dailyPace = remainingDays > 0 ? remainingGoal / remainingDays : 0;
+    const progressPercentage = Math.min((totalEarnings / selectedGoal) * 100, 100);
+
+    return {
+      totalEarnings,
+      remainingGoal,
+      remainingDays,
+      dailyPace,
+      progressPercentage
+    };
+  }, [selectedGoal, currentMonthRecords, selectedDate]);
+};
+
+// Simplified MetricsDashboard component
+const MetricsDashboard = ({ selectedGoal, currentMonthRecords, selectedDate, activityData }) => {
+  const metrics = useMetricsCalculation(selectedGoal, currentMonthRecords, selectedDate);
+  
+  return (
+    <div className="space-y-6">
+      {/* Monthly Progress Card */}
+      <div className="bg-white p-6 rounded-lg">
+        <div className="flex justify-between items-end mb-4">
+          <div>
+            <h3 className="text-lg text-gray-600 mb-2">
+              Monthly Progress ({selectedDate.toLocaleString('default', { month: 'long' })})
+            </h3>
+            <p className="text-4xl font-bold text-green-600">{formatCurrency(metrics.totalEarnings)}</p>
+            <p className="text-sm text-gray-500">of {formatCurrency(selectedGoal)} goal</p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-bold text-blue-600">{formatCurrency(metrics.remainingGoal)}</p>
+            <p className="text-sm text-gray-500">remaining</p>
+          </div>
+        </div>
+
+        <div className="w-full bg-gray-200 rounded-full h-4">
+          <div
+            className="bg-green-500 h-4 rounded-full transition-all duration-500"
+            style={{ width: `${metrics.progressPercentage}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Daily Target Card */}
+      <div className="bg-orange-50 p-6 rounded-lg border border-orange-100">
+        <div className="flex items-center space-x-4">
+          <FiTarget className="text-orange-500 w-8 h-8" />
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800">Daily Target</h3>
+            <p className="text-2xl font-bold text-orange-600">{formatCurrency(metrics.dailyPace)}</p>
+            <p className="text-sm text-gray-600">
+              needed daily for the next {metrics.remainingDays} days
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Activity History */}
+      <div className="mt-8">
+        <h3 className="text-sm font-medium text-gray-400 mb-4">Activity History (last 6 months)</h3>
+        <ActivityTracker activityData={activityData} today={new Date()} />
+      </div>
+    </div>
+  );
+};
+
+// Simplified ActivityTracker component
+const ActivityTracker = React.memo(({ activityData, today }) => {
+  const getColorClass = useCallback((percentage) => {
     if (!percentage && percentage !== 0) return 'bg-gray-100';
     if (percentage >= 100) return 'bg-yellow-400';
     if (percentage >= 75) return 'bg-green-500';
@@ -337,7 +405,7 @@ const ActivityTracker = ({ activityData, today }) => {
     if (percentage >= 25) return 'bg-green-300';
     if (percentage > 0) return 'bg-green-200';
     return 'bg-gray-100';
-  };
+  }, []);
 
   const dates = useMemo(() => {
     const endDate = new Date(today);
@@ -386,100 +454,7 @@ const ActivityTracker = ({ activityData, today }) => {
       </div>
     </div>
   );
-};
-
-
-const MetricsDashboard = ({ selectedGoal, currentMonthRecords, selectedDate, activityData }) => {
-  const {
-    totalEarnings,
-    averageEarningsPerDay,
-    remainingDays,
-    dailyPace,
-  } = useMemo(() => {
-    // Get the first and last day of the selected month
-    const firstDayOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-    const lastDayOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
-    const daysInMonth = lastDayOfMonth.getDate();
-
-    // Filter records for the selected month only
-    const selectedMonthRecords = Object.entries(currentMonthRecords).filter(([date]) => {
-      const recordDate = new Date(date);
-      return recordDate.getMonth() === selectedDate.getMonth() &&
-        recordDate.getFullYear() === selectedDate.getFullYear();
-    });
-
-    // Calculate totals for the selected month
-    const totalEarnings = selectedMonthRecords.reduce((sum, [_, rec]) => sum + (rec.earnings || 0), 0);
-
-    // Calculate average earnings per day based on days passed in the selected month
-    const daysPassed = Math.min(
-      selectedDate.getDate(),
-      daysInMonth
-    );
-    const averageEarningsPerDay = daysPassed ? totalEarnings / daysPassed : 0;
-
-    // Calculate remaining days in the month from the selected date
-    const remainingDays = daysInMonth - selectedDate.getDate() + 1;
-    const remainingGoal = selectedGoal - totalEarnings;
-    const dailyPace = remainingDays > 0 ? remainingGoal / remainingDays : 0;
-
-    return {
-      totalEarnings,
-      averageEarningsPerDay,
-      remainingDays,
-      dailyPace,
-    };
-  }, [selectedGoal, currentMonthRecords, selectedDate]);
-
-  return (
-    <div className="space-y-8">
-      {/* Simplified Monthly Progress */}
-      <div className="bg-white p-6 rounded-lg">
-        <div className="flex justify-between items-end mb-6">
-          <div>
-            <h3 className="text-lg text-gray-600 mb-2">Monthly Progress</h3>
-            <p className="text-4xl font-bold text-green-600">{formatCurrency(totalEarnings)}</p>
-            <p className="text-sm text-gray-500">of {formatCurrency(selectedGoal)} goal</p>
-          </div>
-          <div className="text-right">
-            <p className="text-2xl font-bold text-blue-600">
-              {formatCurrency(Math.max(selectedGoal - totalEarnings, 0))}
-            </p>
-            <p className="text-sm text-gray-500">remaining</p>
-          </div>
-        </div>
-
-        {/* Progress bar */}
-        <div className="w-full bg-gray-200 rounded-full h-4">
-          <div
-            className="bg-green-500 h-4 rounded-full transition-all duration-500"
-            style={{ width: `${Math.min((totalEarnings / selectedGoal) * 100, 100)}%` }}
-          ></div>
-        </div>
-      </div>
-
-      {/* Daily Target Card */}
-      <div className="bg-orange-50 p-6 rounded-lg border border-orange-100">
-        <div className="flex items-center space-x-4">
-          <FiTarget className="text-orange-500 w-8 h-8" />
-          <div>
-            <h3 className="text-lg font-semibold text-gray-800">Daily Target</h3>
-            <p className="text-2xl font-bold text-orange-600">{formatCurrency(dailyPace)}</p>
-            <p className="text-sm text-gray-600">
-              needed daily for the next {remainingDays} days
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Activity Tracker with updated styling */}
-      <div className="mt-8">
-        <h3 className="text-sm font-medium text-gray-400 mb-4">Activity History (last 6 months)</h3>
-        <ActivityTracker activityData={activityData} today={new Date()} />
-      </div>
-    </div>
-  );
-};
+});
 
 
 
@@ -490,7 +465,7 @@ const MetricsSection = ({ loading, metrics, activityData, className = '' }) => (
   <section className={`bg-white rounded-3xl p-4 sm:p-8 shadow-sm ${className}`}>
     <h2 className="text-lg font-medium text-gray-600 mb-8">Monthly Overview</h2>
     {loading ? (
-      <MetricsLoadingPlaceholder />
+      <LoadingPlaceholder type="metrics" />
     ) : (
       <MetricsDashboard {...metrics} activityData={activityData} />
     )}
@@ -514,7 +489,7 @@ const ProgressSection = ({ loading, chartData, className = '', selectedGoal, sel
     <section className={`bg-white rounded-3xl p-4 sm:p-8 shadow-sm ${className}`}>
       <h2 className="text-lg font-medium text-gray-600 mb-8">Earnings Progress</h2>
       {loading ? (
-        <ChartLoadingPlaceholder />
+        <LoadingPlaceholder type="chart" />
       ) : (
         <ProgressChart
           chartData={chartData}
@@ -526,115 +501,224 @@ const ProgressSection = ({ loading, chartData, className = '', selectedGoal, sel
   );
 };
 
-// Loading Placeholder Components
-const Skeleton = ({ className = '', count = 1 }) => (
-  <div className="animate-pulse space-y-4">
-    {[...Array(count)].map((_, i) => (
-      <div key={i} className={`bg-gray-100 rounded ${className}`}></div>
-    ))}
-  </div>
-);
+// Replace all the separate loading components with this single flexible one
+const LoadingPlaceholder = ({ type = 'default' }) => {
+  const templates = {
+    default: [
+      'h-10 w-48',
+      'h-32 w-full',
+      'h-12 w-full',
+      'h-12 w-full',
+      'h-12 w-full'
+    ],
+    chart: [
+      'h-64 w-full rounded-xl',
+      'h-4 w-20',
+      'h-4 w-20',
+      'h-4 w-20'
+    ],
+    metrics: [
+      'h-16 w-32',
+      'h-16 w-32',
+      'h-4 w-full',
+      'h-4 w-3/4',
+      'h-4 w-1/2'
+    ]
+  };
 
-const LoadingPlaceholder = () => (
-  <div className="space-y-4">
-    <Skeleton className="h-10 w-48" />
-    <Skeleton className="h-32" />
-    <Skeleton className="h-12" count={3} />
-  </div>
-);
-
-const ChartLoadingPlaceholder = () => (
-  <div className="space-y-4 animate-pulse">
-    <div className="h-64 bg-gray-100 rounded-xl"></div>
-    <div className="flex justify-center space-x-2">
-      <div className="h-4 w-20 bg-gray-100 rounded"></div>
-      <div className="h-4 w-20 bg-gray-100 rounded"></div>
-      <div className="h-4 w-20 bg-gray-100 rounded"></div>
+  return (
+    <div className="animate-pulse space-y-4">
+      {templates[type].map((className, i) => (
+        <div key={i} className={`bg-gray-100 rounded ${className}`} />
+      ))}
     </div>
-  </div>
-);
-
-const MetricsLoadingPlaceholder = () => (
-  <div className="space-y-6 animate-pulse">
-    <div className="flex justify-between">
-      <div className="h-16 w-32 bg-gray-100 rounded-lg"></div>
-      <div className="h-16 w-32 bg-gray-100 rounded-lg"></div>
-    </div>
-    <div className="h-4 bg-gray-100 rounded-full"></div>
-    <div className="space-y-2">
-      <div className="h-4 bg-gray-100 rounded w-3/4"></div>
-      <div className="h-4 bg-gray-100 rounded w-1/2"></div>
-    </div>
-  </div>
-);
-
+  );
+};
 
 // Replace the DEFAULT_TAGLINES array with a single default tagline
 const DEFAULT_TAGLINE = "Freelance wizard at work 🪄";
 
 // Add this new reusable component near the other shared components
 const MonthlyIncomePill = ({ amount, className = '' }) => (
-  <div className={`flex items-center justify-center bg-blue-50 px-4 py-2 rounded-xl ${className}`}>
-    <FiCreditCard className="w-5 h-5 text-blue-500 mr-2" />
-    <span className="text-sm sm:text-base font-medium text-blue-600">
-      {formatCurrency(amount)}
-    </span>
-    <span className="text-xs sm:text-sm text-blue-400 ml-1">/mo</span>
-  </div>
+  <Tippy content="Average income from months with activity in the past 6 months">
+    <div className={`flex items-center justify-center bg-blue-50 px-4 py-2 rounded-xl ${className}`}>
+      <FiCreditCard className="w-5 h-5 text-blue-500 mr-2" />
+      <span className="text-sm sm:text-base font-medium text-blue-600">
+        {formatCurrency(amount)}
+      </span>
+      <span className="text-xs sm:text-sm text-blue-400 ml-1">/mo</span>
+    </div>
+  </Tippy>
 );
 
+// Add these helper functions at the top of the file
+const getMonthKey = (date) => {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+};
 
+const getDayKey = (date) => {
+  return date.getDate().toString();
+};
 
+// Add this helper function at the top with other helpers
+const getLast6MonthKeys = (date) => {
+  const months = [];
+  const currentDate = new Date(date);
+  
+  for (let i = 0; i < 6; i++) {
+    months.push(getMonthKey(currentDate));
+    currentDate.setMonth(currentDate.getMonth() - 1);
+  }
+  return months;
+};
 
-// Remove useTrackerState custom hook and simplify Dashboard component state
-const Dashboard = () => {
-  const { profileName } = useParams();
+// Update the useDashboardData hook
+const useDashboardData = (profileName) => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-
-  // Simplified state structure
-  const [userData, setUserData] = useState({
-    userId: null,
-    isOwner: false,
-    selectedGoal: 10000,
-    monthlyAverage: 0,
-    tagline: DEFAULT_TAGLINE
-  });
-
-  const [records, setRecords] = useState({
-    currentMonth: {},
-    chartData: { labels: [], earnings: [], projectsCount: [] },
-    activityData: []
-  });
-
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [loading, setLoading] = useState(true);
-  const [isEditingTagline, setIsEditingTagline] = useState(false);
-  const [isUpdatingGoal, setIsUpdatingGoal] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);  // Shared loading state
+  const [state, setState] = useState({
+    userData: {
+      userId: null,
+      isOwner: false,
+      selectedGoal: 10000,
+      monthlyAverage: 0,
+      tagline: DEFAULT_TAGLINE
+    },
+    records: {
+      currentMonth: {},
+      chartData: { labels: [], earnings: [], projectsCount: [] },
+      activityData: []
+    },
+    loading: true,
+    isUpdating: false
+  });
 
-  // Simplified profile fetch
+  // Fetch data whenever selectedDate changes
+  useEffect(() => {
+    if (!state.userData.userId) return;
+
+    const fetchData = async () => {
+      try {
+        setState(prev => ({ ...prev, loading: true }));
+        
+        const monthKey = getMonthKey(selectedDate);
+        const last6Months = getLast6MonthKeys(selectedDate);
+        
+        console.log('[fetchData] Starting fetch:', {
+          monthKey,
+          last6Months,
+          selectedDate: selectedDate.toISOString()
+        });
+        
+        // Fetch goal for the current month
+        const goalDoc = await getDoc(doc(db, getGoalsPath(state.userData.userId, monthKey)));
+        const monthlyGoal = goalDoc.exists() ? goalDoc.data().amount : state.userData.defaultGoal;
+
+        // Fetch records for all 6 months
+        const recordPromises = last6Months.map(mKey => 
+          getDoc(doc(db, getRecordsPath(state.userData.userId, mKey)))
+        );
+        const recordDocs = await Promise.all(recordPromises);
+
+        // Combine all records
+        const allFormattedRecords = {};
+        recordDocs.forEach((doc, index) => {
+          if (doc.exists()) {
+            const monthKey = last6Months[index];
+            const [year, month] = monthKey.split('-').map(Number);
+            
+            Object.entries(doc.data().days || {}).forEach(([day, data]) => {
+              const recordDate = new Date(year, month - 1, Number(day), 12, 0, 0);
+              const dateKey = recordDate.toISOString().split('T')[0];
+              allFormattedRecords[dateKey] = {
+                earnings: data.earnings || 0,
+                projectsCount: data.projectsCount || 0,
+                percentage: data.percentage || 0
+              };
+            });
+          }
+        });
+
+        // Get current month records for chart data
+        const currentMonthRecords = {};
+        Object.entries(allFormattedRecords).forEach(([dateKey, data]) => {
+          const recordDate = new Date(dateKey);
+          if (recordDate.getMonth() === selectedDate.getMonth() && 
+              recordDate.getFullYear() === selectedDate.getFullYear()) {
+            currentMonthRecords[dateKey] = {
+              ...data,
+              earnings: data.earnings || 0,
+              projectsCount: data.projectsCount || 0,
+              percentage: data.percentage || 0
+            };
+          }
+        });
+
+        console.log('[fetchData] Final formatted records:', { 
+          all: allFormattedRecords, 
+          currentMonth: currentMonthRecords 
+        });
+
+        // Update state with new data structure
+        setState(prev => ({
+          ...prev,
+          userData: {
+            ...prev.userData,
+            selectedGoal: monthlyGoal
+          },
+          records: {
+            currentMonth: currentMonthRecords,
+            chartData: {
+              labels: Object.keys(currentMonthRecords).map(date => new Date(date).toLocaleDateString()),
+              earnings: Object.values(currentMonthRecords).map(r => r.earnings || 0),
+              projectsCount: Object.values(currentMonthRecords).map(r => r.projectsCount || 0)
+            },
+            activityData: Object.entries(allFormattedRecords).map(([date, data]) => ({
+              date: new Date(date),
+              earnings: data.earnings || 0,
+              percentage: data.percentage || 0
+            }))
+          },
+          loading: false
+        }));
+      } catch (error) {
+        console.error('[fetchData] Error:', error);
+        setState(prev => ({ ...prev, loading: false }));
+      }
+    };
+
+    fetchData();
+  }, [selectedDate, state.userData.userId, state.userData.defaultGoal]);
+
+  // Initial profile fetch
   useEffect(() => {
     if (!profileName) return;
 
     const fetchProfile = async () => {
       try {
-        const q = query(collection(db, 'profiles'), where('name', '==', profileName));
-        const snapshot = await getDocs(q);
+        const profileSnapshot = await getDocs(
+          query(collection(db, 'profiles'), where('name', '==', profileName))
+        );
 
-        if (snapshot.empty) {
+        if (profileSnapshot.empty) {
           navigate('/');
           return;
         }
 
-        const profileData = snapshot.docs[0].data();
-        setUserData({
-          userId: snapshot.docs[0].id,
-          isOwner: currentUser && profileData.userId === currentUser.uid,
-          selectedGoal: 10000,
-          monthlyAverage: profileData.monthlyAverage || 0,
-          tagline: profileData.tagline || DEFAULT_TAGLINE
-        });
+        const profileDoc = profileSnapshot.docs[0];
+        const profileData = profileDoc.data();
+        
+        setState(prev => ({
+          ...prev,
+          userData: {
+            userId: profileDoc.id,
+            isOwner: currentUser && profileData.userId === currentUser.uid,
+            defaultGoal: profileData.defaultGoal || 10000,
+            monthlyAverage: profileData.monthlyAverage || 0,  // Just use the one from profile
+            tagline: profileData.tagline || DEFAULT_TAGLINE
+          }
+        }));
       } catch (error) {
         console.error('Error:', error);
         navigate('/');
@@ -644,73 +728,43 @@ const Dashboard = () => {
     fetchProfile();
   }, [profileName, currentUser, navigate]);
 
-  // Simplified data fetch
-  useEffect(() => {
-    if (!userData.userId) return;
+  const handleDateChange = useCallback((newDate) => {
+    setSelectedDate(newDate);
+  }, []);
 
-    const fetchData = async () => {
-      console.log('🔄 Fetching data for userId:', userData.userId);
-      try {
-        const userDocRef = await getDoc(doc(db, 'users', userData.userId));
-        const userDocData = userDocRef.exists() ? userDocRef.data() : { monthlyGoal: 10000, records: {} };
+  return [state, setState, handleDateChange, selectedDate];
+};
 
-        console.log('📥 Raw data from Firebase:', userDocData);
+// Simplified Dashboard component
+const Dashboard = () => {
+  const { profileName } = useParams();
+  const [{ userData, records, loading, isUpdating }, setState, handleDateChange, selectedDate] = useDashboardData(profileName);
+  const [isEditingTagline, setIsEditingTagline] = useState(false);
 
-        // Update the selectedGoal from Firebase data
-        setUserData(prev => ({
-          ...prev,
-          selectedGoal: userDocData.monthlyGoal || 10000
-        }));
-
-        // Convert records
-        const records = {};
-        Object.entries(userDocData)
-          .filter(([key]) => key.startsWith('records.'))
-          .forEach(([key, value]) => {
-            records[key.replace('records.', '')] = value;
-          });
-
-        console.log('🔄 Processed records:', records);
-
-        // Update states
-        const dates = Object.keys(records).sort();
-        const processedData = {
-          currentMonth: records,
-          chartData: {
-            labels: dates.map(date => new Date(date).toLocaleDateString()),
-            earnings: dates.map(date => records[date]?.earnings || 0),
-            projectsCount: dates.map(date => records[date]?.projectsCount || 0)
-          },
-          activityData: dates.map(date => ({
-            date: new Date(date),
-            earnings: records[date]?.earnings || 0,
-            percentage: records[date]?.percentage || 0  // Use existing percentage
-          }))
-        };
-
-        console.log('📊 Processed data being set:', processedData);
-        setRecords(processedData);
-        setLoading(false);
-      } catch (error) {
-        console.error('❌ Error fetching data:', error);
-      }
-    };
-
-    fetchData();
-  }, [userData.userId]);
-
-  // Simplified handlers
   const handleGoalUpdate = async (newGoal) => {
     if (!userData.userId || isUpdating) return;
-    setIsUpdating(true);
+    setState(prev => ({ ...prev, isUpdating: true }));
+    
     try {
-      await setDoc(doc(db, 'users', userData.userId), { monthlyGoal: newGoal }, { merge: true });
-      console.log('✅ Goal updated in Firebase');
-      setUserData(prev => ({ ...prev, selectedGoal: newGoal }));
+      const currentMonth = getMonthKey(selectedDate);
+      
+      // Only update the goal for the current month
+      await setDoc(doc(db, getGoalsPath(userData.userId, currentMonth)), {
+        amount: newGoal,
+        updatedAt: new Date()
+      });
+
+      setState(prev => ({
+        ...prev,
+        userData: {
+          ...prev.userData,
+          selectedGoal: newGoal,
+        },
+        isUpdating: false
+      }));
     } catch (error) {
-      console.error('❌ Error updating goal:', error);
-    } finally {
-      setIsUpdating(false);
+      console.error('Error:', error);
+      setState(prev => ({ ...prev, isUpdating: false }));
     }
   };
 
@@ -718,107 +772,80 @@ const Dashboard = () => {
     if (!userData.userId || !userData.isOwner) return;
     try {
       await setDoc(doc(db, 'profiles', userData.userId), { tagline: newTagline }, { merge: true });
-      setUserData(prev => ({ ...prev, tagline: newTagline }));
+      setState(prev => ({
+        ...prev,
+        userData: { ...prev.userData, tagline: newTagline }
+      }));
       setIsEditingTagline(false);
     } catch (error) {
       console.error('Error:', error);
     }
   };
 
-  // Update the record update handler to also update activity data
   const handleRecordUpdate = (updatedRecord) => {
     const dateKey = selectedDate.toISOString().split('T')[0];
     
-    setRecords(prev => {
-      // Update current month records
-      const newCurrentMonth = {
-        ...prev.currentMonth,
-        [dateKey]: updatedRecord
+    setState(prev => {
+      // Extract recentMonths and monthlyAverage from the update
+      const { recentMonths, monthlyAverage, ...recordUpdate } = updatedRecord;
+      
+      const newRecord = {
+        ...(prev.records.currentMonth[dateKey] || {}),
+        ...recordUpdate
       };
 
-      // Update chart data
-      const dates = Object.keys(newCurrentMonth).sort();
-      const newChartData = {
-        labels: dates.map(date => new Date(date).toLocaleDateString()),
-        earnings: dates.map(date => newCurrentMonth[date]?.earnings || 0),
-        projectsCount: dates.map(date => newCurrentMonth[date]?.projectsCount || 0)
+      const updatedMonthRecords = {
+        ...prev.records.currentMonth,
+        [dateKey]: newRecord
       };
 
-      // Update activity data
-      const newActivityData = dates.map(date => ({
-        date: new Date(date),
-        earnings: newCurrentMonth[date]?.earnings || 0,
-        percentage: newCurrentMonth[date]?.percentage || 0
-      }));
+      // Keep existing activity data and only update the current date
+      const updatedActivityData = prev.records.activityData.map(record => {
+        if (record.date.toISOString().split('T')[0] === dateKey) {
+          return {
+            date: record.date,
+            earnings: newRecord.earnings || 0,
+            percentage: newRecord.percentage || 0
+          };
+        }
+        return record;
+      });
 
       return {
-        currentMonth: newCurrentMonth,
-        chartData: newChartData,
-        activityData: newActivityData
+        ...prev,
+        userData: {
+          ...prev.userData,
+          monthlyAverage: monthlyAverage || prev.userData.monthlyAverage
+        },
+        records: {
+          ...prev.records,
+          currentMonth: updatedMonthRecords,
+          chartData: {
+            labels: Object.keys(updatedMonthRecords).map(date => new Date(date).toLocaleDateString()),
+            earnings: Object.values(updatedMonthRecords).map(r => r.earnings || 0),
+            projectsCount: Object.values(updatedMonthRecords).map(r => r.projectsCount || 0)
+          },
+          activityData: updatedActivityData
+        }
       };
     });
   };
 
   if (!userData.userId) {
-    return <div className="flex items-center justify-center min-h-screen">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
-    </div>;
+    return <LoadingSpinner />;
   }
 
-  // Simplified JSX
   return (
     <div className="bg-[#FBFBFD] min-h-screen">
-      <header className="p-4 sm:p-8 border-b">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col space-y-4">
-            <div className="flex flex-col sm:flex-row sm:justify-between gap-4">
-              <div>
-                <h1 className="text-2xl font-semibold">{profileName}'s Page</h1>
-                {isEditingTagline ? (
-                  <div className="flex items-center mt-2">
-                    <input
-                      type="text"
-                      value={userData.tagline}
-                      onChange={(e) => setUserData(prev => ({ ...prev, tagline: e.target.value }))}
-                      className="border rounded px-2 py-1 w-full sm:w-auto"
-                      maxLength={50}
-                    />
-                    <button onClick={() => handleTaglineUpdate(userData.tagline)}>Save</button>
-                    <button onClick={() => setIsEditingTagline(false)}>Cancel</button>
-                  </div>
-                ) : (
-                  <div className="flex items-center mt-2">
-                    <p className="text-gray-500 text-sm sm:text-base">{userData.tagline}</p>
-                    {userData.isOwner && (
-                      <button onClick={() => setIsEditingTagline(true)}>
-                        <FiEdit2 className="w-4 h-4 ml-2" />
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-4">
-                {userData.isOwner && (
-                  <div className={`${isUpdating ? 'opacity-50' : ''} transition-opacity duration-200 w-full sm:w-auto`}>
-                    <select
-                      value={userData.selectedGoal}
-                      onChange={(e) => handleGoalUpdate(parseInt(e.target.value))}
-                      disabled={isUpdating}
-                      className="border rounded p-2 disabled:cursor-not-allowed w-full sm:w-auto"
-                    >
-                      {[3000, 5000, 10000, 20000, 30000].map(value => (
-                        <option key={value} value={value}>Goal: {formatCurrency(value)}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <MonthlyIncomePill amount={userData.monthlyAverage} />
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <DashboardHeader 
+        profileName={profileName}
+        userData={userData}
+        isEditingTagline={isEditingTagline}
+        setIsEditingTagline={setIsEditingTagline}
+        onTaglineUpdate={handleTaglineUpdate}
+        onGoalUpdate={handleGoalUpdate}
+        isUpdating={isUpdating}
+      />
 
       <main className="max-w-6xl mx-auto p-4 sm:p-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -827,12 +854,12 @@ const Dashboard = () => {
               <DailySection
                 loading={loading}
                 selectedDate={selectedDate}
-                onDateChange={setSelectedDate}
+                onDateChange={handleDateChange}
                 userId={userData.userId}
                 selectedGoal={userData.selectedGoal}
-                currentRecord={records.currentMonth[selectedDate.toISOString().split('T')[0]] || {}}
+                currentRecord={records.currentMonth[selectedDate.toISOString().split('T')[0]] || { earnings: 0, projectsCount: 0 }}
                 isUpdating={isUpdating}
-                setIsUpdating={setIsUpdating}
+                setIsUpdating={(value) => setState(prev => ({ ...prev, isUpdating: value }))}
                 onRecordUpdate={handleRecordUpdate}
               />
               <MetricsSection
@@ -870,7 +897,113 @@ const Dashboard = () => {
   );
 };
 
+// Simple loading spinner component
+const LoadingSpinner = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
+  </div>
+);
 
+// Header component extracted for cleaner code
+const DashboardHeader = ({ 
+  profileName, 
+  userData, 
+  isEditingTagline, 
+  setIsEditingTagline, 
+  onTaglineUpdate, 
+  onGoalUpdate,
+  isUpdating 
+}) => (
+  <header className="p-4 sm:p-8 border-b">
+    <div className="max-w-6xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">{profileName}'s Page</h1>
+          <TaglineEditor
+            isEditing={isEditingTagline}
+            tagline={userData.tagline}
+            isOwner={userData.isOwner}
+            onEdit={() => setIsEditingTagline(true)}
+            onSave={onTaglineUpdate}
+            onCancel={() => setIsEditingTagline(false)}
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4">
+          {userData.isOwner && (
+            <GoalSelector
+              value={userData.selectedGoal}
+              onChange={onGoalUpdate}
+              disabled={isUpdating}
+            />
+          )}
+          <MonthlyIncomePill amount={userData.monthlyAverage} />
+        </div>
+      </div>
+    </div>
+  </header>
+);
+
+// Add these components before the DashboardHeader component
+
+const TaglineEditor = ({ isEditing, tagline, isOwner, onEdit, onSave, onCancel }) => {
+  const [editedTagline, setEditedTagline] = useState(tagline);
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center mt-2">
+        <input
+          type="text"
+          value={editedTagline}
+          onChange={(e) => setEditedTagline(e.target.value)}
+          className="border rounded px-2 py-1 w-full sm:w-auto"
+          maxLength={50}
+        />
+        <button 
+          onClick={() => onSave(editedTagline)}
+          className="ml-2 text-green-500 hover:text-green-600"
+        >
+          <FiCheck className="w-4 h-4" />
+        </button>
+        <button 
+          onClick={onCancel}
+          className="ml-2 text-red-500 hover:text-red-600"
+        >
+          <FiX className="w-4 h-4" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center mt-2">
+      <p className="text-gray-500 text-sm sm:text-base">{tagline}</p>
+      {isOwner && (
+        <button 
+          onClick={onEdit}
+          className="ml-2 text-gray-400 hover:text-gray-600"
+        >
+          <FiEdit2 className="w-4 h-4" />
+        </button>
+      )}
+    </div>
+  );
+};
+
+const GoalSelector = ({ value, onChange, disabled }) => (
+  <select
+    value={value}
+    onChange={(e) => onChange(parseInt(e.target.value))}
+    disabled={disabled}
+    className="border rounded p-2 disabled:cursor-not-allowed w-full sm:w-auto"
+  >
+    {[3000, 5000, 10000, 20000, 30000].map(amount => (
+      <option key={amount} value={amount}>
+        Goal: {formatCurrency(amount)}
+      </option>
+    ))}
+  </select>
+);
 
 // Update the App component
 const App = () => {
@@ -883,6 +1016,7 @@ const App = () => {
             <Routes>
               <Route path="/" element={<ProfileSelection />} />
               <Route path="/:profileName" element={<Dashboard />} />
+              <Route path="/admin/migrate" element={<MigrationTool />} />
             </Routes>
           </main>
           <Footer />

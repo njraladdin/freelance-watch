@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Chart } from 'react-chartjs-2';
 import { FiUser, FiCreditCard } from 'react-icons/fi';
-import { collection, getDocs, doc, setDoc, addDoc, query, where } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, addDoc, query, where, getDoc } from 'firebase/firestore';
 import { signInWithPopup, signOut } from 'firebase/auth';
-import { db, auth, googleProvider } from '../firebase';
+import { db, auth, googleProvider, getStatsPath } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
+import Tippy from '@tippyjs/react';
 
 // Helper function
 const formatCurrency = (amount) => {
@@ -20,13 +21,15 @@ const formatCurrency = (amount) => {
 
 // Reusable components
 const MonthlyIncomePill = ({ amount, className = '' }) => (
-  <div className={`flex items-center justify-center bg-blue-50 px-4 py-2 rounded-xl ${className}`}>
-    <FiCreditCard className="w-5 h-5 text-blue-500 mr-2" />
-    <span className="text-sm sm:text-base font-medium text-blue-600">
-      {formatCurrency(amount)}
-    </span>
-    <span className="text-xs sm:text-sm text-blue-400 ml-1">/mo</span>
-  </div>
+  <Tippy content="Average income from months with activity in the past 6 months">
+    <div className={`flex items-center justify-center bg-blue-50 px-4 py-2 rounded-xl ${className}`}>
+      <FiCreditCard className="w-5 h-5 text-blue-500 mr-2" />
+      <span className="text-sm sm:text-base font-medium text-blue-600">
+        {formatCurrency(amount)}
+      </span>
+      <span className="text-xs sm:text-sm text-blue-400 ml-1">/mo</span>
+    </div>
+  </Tippy>
 );
 
 const GoogleLogo = () => (
@@ -44,17 +47,20 @@ const ProfileCard = ({ profile, isOwnProfile }) => {
   const navigate = useNavigate();
 
   const monthlyData = React.useMemo(() => {
-    const aggregates = profile.aggregates?.monthly || {};
+    const recentMonths = profile.recentMonths || {};
     const today = new Date();
     const data = [];
 
     for (let i = 6; i >= 0; i--) {
-      const monthIndex = (today.getMonth() - i + 12) % 12;
-      data.push((aggregates[monthIndex] || 0) / 1000);
+      const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      data.push((recentMonths[monthKey] || 0) / 1000); // Convert to thousands
     }
 
     return data;
-  }, [profile.aggregates]);
+  }, [profile.recentMonths]);
+
+  const monthlyAverage = profile.monthlyAverage || 0;
 
   const chartData = {
     labels: getLastSevenMonths(),
@@ -131,7 +137,7 @@ const ProfileCard = ({ profile, isOwnProfile }) => {
             </p>
           </div>
         </div>
-        <MonthlyIncomePill amount={profile.monthlyAverage} />
+        <MonthlyIncomePill amount={monthlyAverage} />
       </div>
 
       <div className="h-36">
@@ -173,21 +179,19 @@ const ProfileSelection = () => {
           return;
         }
 
-        // Create new profile
+        // Create new profile with the new structure
         const newProfileRef = await addDoc(profilesCollection, {
           name: user.displayName,
-          createdAt: new Date().toISOString(),
           userId: user.uid,
-          aggregates: { weekly: {}, monthly: {} },
-          monthlyAverage: 0
+          tagline: "Freelance wizard at work 🪄",
+          defaultGoal: 10000,
+          createdAt: new Date()
         });
 
-        // Create user document
-        await setDoc(doc(db, 'users', newProfileRef.id), {
-          monthlyGoal: 10000,
-          records: {},
-          createdAt: new Date().toISOString(),
-          userId: user.uid
+        // Initialize stats subcollection
+        await setDoc(doc(db, getStatsPath(newProfileRef.id)), {
+          monthlyAverages: {},
+          lastUpdated: new Date()
         });
 
         navigate(`/${encodeURIComponent(user.displayName)}`);
@@ -208,10 +212,12 @@ const ProfileSelection = () => {
       try {
         const profilesCollection = collection(db, 'profiles');
         const snapshot = await getDocs(profilesCollection);
+        
         const profilesData = snapshot.docs.map(doc => ({
           id: doc.id,
-          ...doc.data(),
+          ...doc.data()
         }));
+
         setProfiles(profilesData);
       } catch (error) {
         console.error('Error fetching profiles:', error);
