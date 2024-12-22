@@ -10,7 +10,7 @@ const ProgressChart = ({ chartData, goalLineAccumulated, selectedDate }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Generate all days of the selected month
+  // Generate all days of the selected month with cumulative earnings
   const monthData = useMemo(() => {
     const year = selectedDate.getFullYear();
     const month = selectedDate.getMonth();
@@ -22,10 +22,14 @@ const ProgressChart = ({ chartData, goalLineAccumulated, selectedDate }) => {
       return date.toLocaleDateString();
     });
 
-    // Map existing data to the full month array
+    // Map existing data to the full month array and calculate cumulative earnings
+    let cumulativeEarnings = 0;
     const earnings = dates.map(date => {
       const index = chartData.labels.indexOf(date);
-      return index !== -1 ? chartData.earnings[index] : 0;
+      if (index !== -1) {
+        cumulativeEarnings += chartData.earnings[index];
+      }
+      return cumulativeEarnings;
     });
 
     const projects = dates.map(date => {
@@ -43,7 +47,7 @@ const ProgressChart = ({ chartData, goalLineAccumulated, selectedDate }) => {
   const datasets = [
     {
       type: 'line',
-      label: 'Earnings (USD)',
+      label: 'Cumulative Earnings (USD)',
       yAxisID: 'y1',
       borderColor: '#10B981',
       backgroundColor: 'rgba(16, 185, 129, 0.1)',
@@ -57,7 +61,7 @@ const ProgressChart = ({ chartData, goalLineAccumulated, selectedDate }) => {
     },
     {
       type: 'line',
-      label: 'Goal',
+      label: 'Monthly Goal',
       yAxisID: 'y1',
       borderColor: '#FF6384',
       data: goalLineAccumulated,
@@ -68,14 +72,12 @@ const ProgressChart = ({ chartData, goalLineAccumulated, selectedDate }) => {
       datalabels: { display: false },
     },
     {
-      type: 'line',
+      type: 'bar',
       label: 'Projects Won',
       yAxisID: 'y3',
-      borderColor: '#A855F7',
+      backgroundColor: '#A855F7',
       data: monthData.projectsCount,
-      borderWidth: 2,
-      fill: false,
-      tension: 0.1,
+      borderWidth: 0,
       datalabels: {
         display: true,
         align: 'top',
@@ -114,8 +116,11 @@ const ProgressChart = ({ chartData, goalLineAccumulated, selectedDate }) => {
         display: true,
         position: 'right',
         beginAtZero: true,
-        max: Math.max(...monthData.projectsCount, 10),
+        max: Math.max(...monthData.projectsCount, 5),
         grid: { drawOnChartArea: false },
+        ticks: {
+          stepSize: 1,
+        },
       },
     },
     plugins: {
@@ -128,6 +133,16 @@ const ProgressChart = ({ chartData, goalLineAccumulated, selectedDate }) => {
           pointStyle: 'circle',
         },
       },
+      tooltip: {
+        callbacks: {
+          label: (context) => {
+            if (context.dataset.label === 'Cumulative Earnings (USD)' || context.dataset.label === 'Monthly Goal') {
+              return `${context.dataset.label}: $${Math.round(context.parsed.y).toLocaleString()}`;
+            }
+            return `${context.dataset.label}: ${context.parsed.y}`;
+          }
+        }
+      }
     },
   };
 
