@@ -1,5 +1,5 @@
 /** @type {import('tailwindcss').Config} */
-export default {
+module.exports = {
     darkMode: ["class"],
     content: [
     "./index.html",
@@ -36,7 +36,10 @@ export default {
   			},
   			accent: {
   				DEFAULT: 'hsl(var(--accent))',
-  				foreground: 'hsl(var(--accent-foreground))'
+  				foreground: 'hsl(var(--accent-foreground))',
+  				primary: '#0A84FF',
+  				light: '#E5F1FF',
+  				dark: '#0058B6'
   			},
   			destructive: {
   				DEFAULT: 'hsl(var(--destructive))',
@@ -51,6 +54,28 @@ export default {
   				'3': 'hsl(var(--chart-3))',
   				'4': 'hsl(var(--chart-4))',
   				'5': 'hsl(var(--chart-5))'
+  			},
+  			success: {
+  				primary: '#34C759',
+  				light: '#E3F9E7',
+  				dark: '#248A3D'
+  			},
+  			warning: {
+  				primary: '#FF9F0A',
+  				light: '#FFF4E5',
+  				dark: '#B36D00'
+  			},
+  			neutral: {
+  				50: '#F9FAFB',
+  				100: '#F3F4F6',
+  				200: '#E5E7EB',
+  				300: '#D1D5DB',
+  				400: '#9CA3AF',
+  				500: '#6B7280',
+  				600: '#4B5563',
+  				700: '#374151',
+  				800: '#1F2937',
+  				900: '#111827'
   			}
   		}
   	},

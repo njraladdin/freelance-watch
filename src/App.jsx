@@ -18,6 +18,37 @@ import { getGoalsPath, getRecordsPath, getStatsPath, calculateMonthlyAverage } f
 // Register ChartJS components
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, LineController, BarController, ChartDataLabels);
 
+// Add these color constants at the top of the file
+const colors = {
+  success: {
+    primary: '#34C759', // Apple's success green
+    light: '#E3F9E7',
+    dark: '#248A3D'
+  },
+  accent: {
+    primary: '#0A84FF', // Apple's blue
+    light: '#E5F1FF',
+    dark: '#0058B6'
+  },
+  warning: {
+    primary: '#FF9F0A', // Apple's orange
+    light: '#FFF4E5',
+    dark: '#B36D00'
+  },
+  neutral: {
+    50: '#F9FAFB',
+    100: '#F3F4F6',
+    200: '#E5E7EB',
+    300: '#D1D5DB',
+    400: '#9CA3AF',
+    500: '#6B7280',
+    600: '#4B5563',
+    700: '#374151',
+    800: '#1F2937',
+    900: '#111827'
+  }
+};
+
 // Add this helper function near the top of the file, before any components
 const formatCurrency = (amount) => 
   new Intl.NumberFormat('en-US', {
@@ -86,14 +117,14 @@ const DateSelector = React.memo(({ date, onDateChange, disabled }) => {
   };
 
   return (
-    <div className={`bg-white p-4 rounded-xl border border-gray-100 ${disabled ? 'opacity-50' : ''}`}>
+    <div className={`bg-white p-4 rounded-xl border border-neutral-200 ${disabled ? 'opacity-50' : ''}`}>
       <div className="flex items-center justify-center space-x-4">
         <button
           onClick={goToPreviousDay}
           disabled={disabled}
-          className="p-2 rounded-full hover:bg-gray-100 disabled:cursor-not-allowed"
+          className="p-2 rounded-full hover:bg-neutral-100 disabled:cursor-not-allowed transition-colors"
         >
-          <FiChevronLeft className="w-5 h-5" />
+          <FiChevronLeft className="w-5 h-5 text-neutral-600" />
         </button>
 
         <div className="text-center">
@@ -103,14 +134,14 @@ const DateSelector = React.memo(({ date, onDateChange, disabled }) => {
             dateFormat="dd/MMM/yyyy"
             maxDate={tomorrow}
             disabled={disabled}
-            className="text-center border rounded-lg p-2 disabled:cursor-not-allowed"
+            className="text-center border border-neutral-200 rounded-lg p-2 disabled:cursor-not-allowed hover:border-neutral-300 focus:border-accent-primary focus:outline-none transition-colors"
           />
           {(isToday || isTomorrow) && (
             <div className="mt-1 text-sm font-medium">
               {isToday ? (
-                <span className="text-green-500">Today</span>
+                <span className="text-success-primary">Today</span>
               ) : (
-                <span className="text-blue-500">Tomorrow</span>
+                <span className="text-accent-primary">Tomorrow</span>
               )}
             </div>
           )}
@@ -130,12 +161,13 @@ const DateSelector = React.memo(({ date, onDateChange, disabled }) => {
 
 // First, let's create reusable UI components
 const MetricCard = ({ icon: Icon, title, children, disabled }) => (
-  <div className={`mt-6 p-6 rounded-xl border border-gray-100 ${disabled ? 'opacity-50' : ''}`}>
-    <div className="flex items-center mb-4">
-      <div className={`p-2 ${Icon.color} rounded-lg`}>
-        <Icon.component className={`${Icon.textColor} w-6 h-6`} />
+  <div className={`mt-6 sm:mt-8 p-6 sm:p-8 rounded-2xl border border-neutral-100 bg-white shadow-sm hover:shadow-md transition-all duration-200 
+    ${disabled ? 'opacity-50' : 'hover:border-neutral-200'}`}>
+    <div className="flex items-center mb-4 sm:mb-6">
+      <div className={`p-2 sm:p-3 ${Icon.color} rounded-xl transition-colors`}>
+        <Icon.component className={`${Icon.textColor} w-6 h-6 sm:w-7 sm:h-7`} />
       </div>
-      <h3 className="ml-3 text-lg font-semibold">{title}</h3>
+      <h3 className="ml-3 sm:ml-4 text-lg sm:text-xl font-medium text-neutral-800">{title}</h3>
     </div>
     {children}
   </div>
@@ -237,14 +269,16 @@ const DailySection = ({
   if (loading) return <LoadingPlaceholder />;
 
   return (
-    <section className="bg-white rounded-3xl p-4 sm:p-8 shadow-sm">
-      <h2 className="text-lg font-medium text-gray-600 mb-8">Today's Progress</h2>
+    <section className="bg-white rounded-3xl p-8 shadow-sm hover:shadow-md transition-shadow duration-200">
+      <h2 className="text-2xl font-medium text-gray-800 mb-8">Today's Progress</h2>
       
-      <DateSelector 
-        date={selectedDate} 
-        onDateChange={onDateChange} 
-        disabled={isUpdating}
-      />
+      <div className="mb-12">
+        <DateSelector 
+          date={selectedDate} 
+          onDateChange={onDateChange} 
+          disabled={isUpdating}
+        />
+      </div>
       
       <MetricCard 
         icon={{ 
@@ -255,7 +289,7 @@ const DailySection = ({
         title="Today's Income"
         disabled={isUpdating}
       >
-        <div className="flex flex-col items-center justify-center space-y-4">
+        <div className="flex flex-col items-center justify-center space-y-6">
           <form 
             onSubmit={(e) => {
               e.preventDefault();
@@ -269,7 +303,7 @@ const DailySection = ({
             className="relative"
           >
             <div className="relative group">
-              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+              <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 text-xl">$</span>
               <input
                 type="number"
                 name="earnings"
@@ -282,10 +316,10 @@ const DailySection = ({
                   }
                 }}
                 disabled={isUpdating}
-                className="w-48 text-center text-3xl font-bold border-b-2 border-green-400 hover:border-green-500 focus:border-green-600 focus:outline-none disabled:cursor-not-allowed pl-8 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                className="w-48 sm:w-64 text-center text-3xl sm:text-5xl font-bold border-b-2 border-success-primary hover:border-success-dark focus:border-success-dark focus:outline-none disabled:cursor-not-allowed pl-8 sm:pl-12 py-2 sm:py-4 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
-              <FiEdit2 className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 opacity-0 group-hover:opacity-100 group-focus-within:opacity-0" />
-              <FiEdit2 className="absolute right-2 top-1/2 transform -translate-y-1/2 text-green-500 opacity-0 group-focus-within:opacity-100" />
+              <FiEdit2 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 opacity-0 group-hover:opacity-100 group-focus-within:opacity-0 w-6 h-6" />
+              <FiEdit2 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-green-500 opacity-0 group-focus-within:opacity-100 w-6 h-6" />
             </div>
           </form>
 
@@ -307,7 +341,7 @@ const DailySection = ({
         title="Projects Won"
         disabled={isUpdating}
       >
-        <div className="flex justify-center space-x-3">
+        <div className="flex justify-center space-x-4">
           {[1, 2, 3, 4, 5].map((num) => (
             <button
               key={num}
@@ -315,11 +349,13 @@ const DailySection = ({
               onClick={() => handleUpdate({ 
                 projectsCount: currentRecord.projectsCount === num ? 0 : num 
               })}
-              className={`w-12 h-12 rounded-lg flex items-center justify-center
-                ${currentRecord.projectsCount >= num ? 'bg-purple-500 text-white' : 'bg-gray-50 hover:bg-purple-50'}
-                disabled:cursor-not-allowed`}
+              className={`w-12 h-12 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center text-base sm:text-lg font-medium transition-all duration-200
+                ${currentRecord.projectsCount >= num 
+                  ? 'bg-accent-primary text-white shadow-md hover:bg-accent-dark' 
+                  : 'bg-neutral-50 hover:bg-accent-light hover:shadow-sm text-neutral-700 hover:text-accent-primary'}
+                disabled:cursor-not-allowed disabled:opacity-50`}
             >
-              {currentRecord.projectsCount >= num ? <FiBriefcase /> : num}
+              {currentRecord.projectsCount >= num ? <FiBriefcase className="w-5 h-5 sm:w-6 sm:h-6" /> : num}
             </button>
           ))}
         </div>
@@ -362,39 +398,49 @@ const MetricsDashboard = ({ selectedGoal, currentMonthRecords, selectedDate, act
   const metrics = useMetricsCalculation(selectedGoal, currentMonthRecords, selectedDate);
   
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 sm:space-y-8">
       {/* Monthly Progress Card */}
-      <div className="bg-white p-6 rounded-lg">
-        <div className="flex justify-between items-end mb-4">
+      <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-200">
+        <div className="flex justify-between items-end mb-6 sm:mb-8">
           <div>
-            <h3 className="text-lg text-gray-600 mb-2">
+            <h3 className="text-lg sm:text-xl text-neutral-600 mb-3 sm:mb-4">
               Monthly Progress ({selectedDate.toLocaleString('default', { month: 'long' })})
             </h3>
-            <p className="text-4xl font-bold text-green-600">{formatCurrency(metrics.totalEarnings)}</p>
-            <p className="text-sm text-gray-500">of {formatCurrency(selectedGoal)} goal</p>
+            <p className="text-3xl sm:text-5xl font-bold text-success-primary mb-1 sm:mb-2">
+              {formatCurrency(metrics.totalEarnings)}
+            </p>
+            <p className="text-sm sm:text-base text-neutral-500">
+              of {formatCurrency(selectedGoal)} goal
+            </p>
           </div>
           <div className="text-right">
-            <p className="text-2xl font-bold text-blue-600">{formatCurrency(metrics.remainingGoal)}</p>
-            <p className="text-sm text-gray-500">remaining</p>
+            <p className="text-2xl sm:text-3xl font-bold text-accent-primary mb-1 sm:mb-2">
+              {formatCurrency(metrics.remainingGoal)}
+            </p>
+            <p className="text-sm sm:text-base text-neutral-500">remaining</p>
           </div>
         </div>
 
-        <div className="w-full bg-gray-200 rounded-full h-4">
+        <div className="w-full bg-neutral-100 rounded-full h-4 sm:h-6">
           <div
-            className="bg-green-500 h-4 rounded-full transition-all duration-500"
+            className="bg-success-primary h-4 sm:h-6 rounded-full transition-all duration-500 shadow-sm"
             style={{ width: `${metrics.progressPercentage}%` }}
           />
         </div>
       </div>
 
       {/* Daily Target Card */}
-      <div className="bg-orange-50 p-6 rounded-lg border border-orange-100">
-        <div className="flex items-center space-x-4">
-          <FiTarget className="text-orange-500 w-8 h-8" />
+      <div className="bg-warning-light p-6 sm:p-8 rounded-2xl border border-warning-primary/20 shadow-sm hover:shadow-md transition-all duration-200">
+        <div className="flex items-center space-x-4 sm:space-x-6">
+          <FiTarget className="text-warning-primary w-8 h-8 sm:w-12 sm:h-12" />
           <div>
-            <h3 className="text-lg font-semibold text-gray-800">Daily Target</h3>
-            <p className="text-2xl font-bold text-orange-600">{formatCurrency(metrics.dailyPace)}</p>
-            <p className="text-sm text-gray-600">
+            <h3 className="text-lg sm:text-xl font-medium text-neutral-800 mb-2 sm:mb-3">
+              Daily Target
+            </h3>
+            <p className="text-2xl sm:text-3xl font-bold text-warning-dark mb-1 sm:mb-2">
+              {formatCurrency(metrics.dailyPace)}
+            </p>
+            <p className="text-sm sm:text-base text-neutral-600">
               needed daily for the next {metrics.remainingDays} days
             </p>
           </div>
@@ -402,8 +448,8 @@ const MetricsDashboard = ({ selectedGoal, currentMonthRecords, selectedDate, act
       </div>
 
       {/* Activity History */}
-      <div className="mt-8">
-        <h3 className="text-sm font-medium text-gray-400 mb-4">Activity History (last 6 months)</h3>
+      <div className="mt-8 sm:mt-12">
+        <h3 className="text-sm sm:text-base font-medium text-gray-500 mb-4 sm:mb-6">Activity History (last 6 months)</h3>
         <ActivityTracker activityData={activityData} today={new Date()} />
       </div>
     </div>
@@ -872,29 +918,33 @@ const Dashboard = () => {
       />
 
       <main className="max-w-6xl mx-auto p-4 sm:p-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
           {userData.isOwner ? (
             <>
-              <DailySection
-                loading={loading}
-                selectedDate={selectedDate}
-                onDateChange={handleDateChange}
-                userId={userData.userId}
-                selectedGoal={userData.selectedGoal}
-                currentRecord={records.currentMonth[selectedDate.toISOString().split('T')[0]] || { earnings: 0, projectsCount: 0 }}
-                isUpdating={isUpdating}
-                setIsUpdating={(value) => setState(prev => ({ ...prev, isUpdating: value }))}
-                onRecordUpdate={handleRecordUpdate}
-              />
-              <MetricsSection
-                loading={loading}
-                metrics={{
-                  selectedGoal: userData.selectedGoal,
-                  currentMonthRecords: records.currentMonth,
-                  selectedDate,
-                }}
-                activityData={records.activityData}
-              />
+              <div className="lg:col-start-2 lg:row-start-1">
+                <MetricsSection
+                  loading={loading}
+                  metrics={{
+                    selectedGoal: userData.selectedGoal,
+                    currentMonthRecords: records.currentMonth,
+                    selectedDate,
+                  }}
+                  activityData={records.activityData}
+                />
+              </div>
+              <div className="lg:col-start-1 lg:row-start-1">
+                <DailySection
+                  loading={loading}
+                  selectedDate={selectedDate}
+                  onDateChange={handleDateChange}
+                  userId={userData.userId}
+                  selectedGoal={userData.selectedGoal}
+                  currentRecord={records.currentMonth[selectedDate.toISOString().split('T')[0]] || { earnings: 0, projectsCount: 0 }}
+                  isUpdating={isUpdating}
+                  setIsUpdating={(value) => setState(prev => ({ ...prev, isUpdating: value }))}
+                  onRecordUpdate={handleRecordUpdate}
+                />
+              </div>
             </>
           ) : (
             <MetricsSection
@@ -913,7 +963,7 @@ const Dashboard = () => {
             chartData={records.chartData}
             selectedGoal={userData.selectedGoal}
             selectedDate={selectedDate}
-            className="col-span-1 lg:col-span-2"
+            className="col-span-1 lg:col-span-2 mt-8"
           />
         </div>
       </main>
