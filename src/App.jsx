@@ -14,7 +14,6 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import ProgressChart from './components/ProgressChart';
 import ProfileSelection from './components/ProfileSelection';
-import MigrationTool from './components/MigrationTool';
 import { getGoalsPath, getRecordsPath, getStatsPath, calculateMonthlyAverage } from './firebase';
 // Register ChartJS components
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, LineController, BarController, ChartDataLabels);
@@ -268,7 +267,12 @@ const DailySection = ({
           <input
             type="number"
             value={currentRecord.earnings || 0}
-            onChange={(e) => handleUpdate({ earnings: Math.max(parseFloat(e.target.value) || 0, 0) })}
+            onChange={(e) => {
+              const newValue = Math.max(parseFloat(e.target.value) || 0, 0);
+              if (!isNaN(newValue)) {
+                handleUpdate({ earnings: newValue });
+              }
+            }}
             disabled={isUpdating}
             className="w-32 text-center text-2xl font-bold border-b-2 border-green-400 disabled:cursor-not-allowed"
           />
@@ -540,7 +544,14 @@ const DEFAULT_TAGLINE = "Freelance wizard at work 🪄";
 
 // Add this new reusable component near the other shared components
 const MonthlyIncomePill = ({ amount, className = '' }) => (
-  <Tippy content="Average income from months with activity in the past 6 months">
+  <Tippy content={
+    <div>
+      <p>Average income from months with activity in the past 6 months</p>
+      <p className="text-sm mt-1 text-gray-300">
+        Formula: Total earnings from active months ÷ Number of active months
+      </p>
+    </div>
+  }>
     <div className={`flex items-center justify-center bg-blue-50 px-4 py-2 rounded-xl ${className}`}>
       <FiCreditCard className="w-5 h-5 text-blue-500 mr-2" />
       <span className="text-sm sm:text-base font-medium text-blue-600">
@@ -1016,7 +1027,6 @@ const App = () => {
             <Routes>
               <Route path="/" element={<ProfileSelection />} />
               <Route path="/:profileName" element={<Dashboard />} />
-              <Route path="/admin/migrate" element={<MigrationTool />} />
             </Routes>
           </main>
           <Footer />
