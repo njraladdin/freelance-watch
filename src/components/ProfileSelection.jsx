@@ -21,7 +21,16 @@ const formatCurrency = (amount) => {
 
 // Reusable components
 const MonthlyIncomePill = ({ amount, className = '' }) => (
-  <Tippy content="Average income from months with activity in the past 6 months">
+  <Tippy content={
+    <div>
+      <p>Average income from past 6 months</p>
+      <div className="text-xs mt-1 text-gray-300 flex flex-col items-center">
+        <div className="text-center">Total earnings from active months</div>
+        <div className="w-48 border-t border-gray-300 my-0.5"></div>
+        <div className="text-center">Number of active months</div>
+      </div>
+    </div>
+  }>
     <div className={`flex items-center justify-center bg-blue-50 px-4 py-2 rounded-xl ${className}`}>
       <FiCreditCard className="w-5 h-5 text-blue-500 mr-2" />
       <span className="text-sm sm:text-base font-medium text-blue-600">

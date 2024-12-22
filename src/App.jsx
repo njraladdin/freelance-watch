@@ -255,35 +255,46 @@ const DailySection = ({
         title="Today's Income"
         disabled={isUpdating}
       >
-        <div className="flex items-center justify-center space-x-4">
-          <button
-            disabled={isUpdating}
-            onClick={() => handleUpdate({ earnings: Math.max((currentRecord.earnings || 0) - 10, 0) })}
-            className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 disabled:cursor-not-allowed"
-          >
-            <FiMinus className="w-6 h-6" />
-          </button>
-
-          <input
-            type="number"
-            value={currentRecord.earnings || 0}
-            onChange={(e) => {
-              const newValue = Math.max(parseFloat(e.target.value) || 0, 0);
+        <div className="flex flex-col items-center justify-center space-y-4">
+          <form 
+            onSubmit={(e) => {
+              e.preventDefault();
+              const input = e.target.elements.earnings;
+              const newValue = Math.max(parseFloat(input.value) || 0, 0);
               if (!isNaN(newValue)) {
                 handleUpdate({ earnings: newValue });
               }
+              input.blur();
             }}
-            disabled={isUpdating}
-            className="w-32 text-center text-2xl font-bold border-b-2 border-green-400 disabled:cursor-not-allowed"
-          />
-
-          <button
-            disabled={isUpdating}
-            onClick={() => handleUpdate({ earnings: (currentRecord.earnings || 0) + 10 })}
-            className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 disabled:cursor-not-allowed"
+            className="relative"
           >
-            <FiPlus className="w-6 h-6" />
-          </button>
+            <div className="relative group">
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+              <input
+                type="number"
+                name="earnings"
+                defaultValue={currentRecord.earnings || 0}
+                onFocus={(e) => e.target.select()}
+                onBlur={(e) => {
+                  const newValue = Math.max(parseFloat(e.target.value) || 0, 0);
+                  if (!isNaN(newValue) && newValue !== currentRecord.earnings) {
+                    handleUpdate({ earnings: newValue });
+                  }
+                }}
+                disabled={isUpdating}
+                className="w-48 text-center text-3xl font-bold border-b-2 border-green-400 hover:border-green-500 focus:border-green-600 focus:outline-none disabled:cursor-not-allowed pl-8 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              <FiEdit2 className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 opacity-0 group-hover:opacity-100 group-focus-within:opacity-0" />
+              <FiEdit2 className="absolute right-2 top-1/2 transform -translate-y-1/2 text-green-500 opacity-0 group-focus-within:opacity-100" />
+            </div>
+          </form>
+
+          {isUpdating && (
+            <div className="flex items-center space-x-2 text-sm text-green-500 animate-fade-in">
+              <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+              <span>Saving...</span>
+            </div>
+          )}
         </div>
       </MetricCard>
 
@@ -546,10 +557,12 @@ const DEFAULT_TAGLINE = "Freelance wizard at work 🪄";
 const MonthlyIncomePill = ({ amount, className = '' }) => (
   <Tippy content={
     <div>
-      <p>Average income from months with activity in the past 6 months</p>
-      <p className="text-sm mt-1 text-gray-300">
-        Formula: Total earnings from active months ÷ Number of active months
-      </p>
+      <p>Average income from past 6 months</p>
+      <div className="text-xs mt-1 text-gray-300 flex flex-col items-center">
+        <div className="text-center">Total earnings from active months</div>
+        <div className="w-48 border-t border-gray-300 my-0.5"></div>
+        <div className="text-center">Number of active months</div>
+      </div>
     </div>
   }>
     <div className={`flex items-center justify-center bg-blue-50 px-4 py-2 rounded-xl ${className}`}>
