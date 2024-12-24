@@ -4,7 +4,7 @@ import { Chart } from 'react-chartjs-2';
 import { FiUser, FiCreditCard } from 'react-icons/fi';
 import { collection, getDocs, doc, setDoc, addDoc, query, where, getDoc } from 'firebase/firestore';
 import { signInWithPopup, signOut } from 'firebase/auth';
-import { db, auth, googleProvider, getStatsPath } from '../firebase';
+import { db, auth, googleProvider, getStatsPath, updatePublicUserCount } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import Tippy from '@tippyjs/react';
 
@@ -202,6 +202,8 @@ const ProfileSelection = () => {
           monthlyAverages: {},
           lastUpdated: new Date()
         });
+
+        await updatePublicUserCount();
 
         navigate(`/${encodeURIComponent(user.displayName)}`);
       } else {

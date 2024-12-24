@@ -1,8 +1,10 @@
 // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getFirestore } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getDatabase, ref, set } from 'firebase/database';
+import { collection, getDocs } from 'firebase/firestore';
 
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
@@ -17,6 +19,7 @@ const firebaseConfig = {
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+  databaseURL: "https://progress-tracker-e27a5-default-rtdb.europe-west1.firebasedatabase.app"
 };
 
 // Initialize Firebase only if it hasn't been initialized yet
@@ -29,8 +32,12 @@ try {
   }
 }
 
+// Get app instance if it wasn't just initialized
+app = app || getApp();
+
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const realtimeDb = getDatabase(app);
 
 // Configure Google Auth Provider
 export const googleProvider = new GoogleAuthProvider();
@@ -63,6 +70,25 @@ export const calculateMonthlyAverage = (recentMonths) => {
   
   const average = monthsWithIncome.reduce((sum, val) => sum + val, 0) / monthsWithIncome.length;
   return Math.round(average);
+};
+
+// Add this function to update the public user count
+export const updatePublicUserCount = async () => {
+  try {
+    const snapshot = await getDocs(collection(db, 'profiles'));
+    const count = snapshot.size;
+    
+    const badgeData = {
+      schemaVersion: 1,
+      label: "Users",
+      message: count.toString(),
+      color: "blue"
+    };
+    
+    await set(ref(realtimeDb, 'public/badge'), badgeData);
+  } catch (error) {
+    console.error('Error updating public user count:', error);
+  }
 };
 
 // Profile document structure:
